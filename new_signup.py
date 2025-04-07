@@ -270,95 +270,103 @@ def setup_driver(translator=None):
         translator: 翻译器对象，用于多语言支持，可以为None
         
     返回值:
-        ChromiumPage: 已配置的浏览器页面对象，如果出错则返回None
+        tuple: (config, ChromiumPage) 配置对象和已配置的浏览器页面对象
     """
-    global _chrome_process_ids
+    global _chrome_process_ids  # 全局变量，用于存储Chrome进程ID，便于程序退出时清理
     
     try:
-        # Get config
-        config = get_config(translator)
+        # 获取配置信息
+        config = get_config(translator)  # 从配置文件加载设置
         
-        # Get Chrome path
-        chrome_path = config.get('Chrome', 'chromepath', fallback=get_default_chrome_path())
+        # 获取Chrome浏览器路径
+        chrome_path = config.get('Chrome', 'chromepath', fallback=get_default_chrome_path())  # 尝试从配置获取路径，如果没有则使用默认路径
         
+        # 验证Chrome路径是否有效
         if not chrome_path or not os.path.exists(chrome_path):
+            # 路径无效时显示警告并使用默认路径
             if translator:
                 print(f"{Fore.YELLOW}⚠️ {translator.get('register.chrome_path_invalid') if translator else 'Chrome路径无效，使用默认路径'}{Style.RESET_ALL}")
-            chrome_path = get_default_chrome_path()
+            chrome_path = get_default_chrome_path()  # 使用系统默认Chrome路径
 
-        # Set browser options
-        co = ChromiumOptions()
+        # 创建浏览器选项对象
+        co = ChromiumOptions()  # 初始化ChromiumOptions对象，用于配置浏览器启动参数
         
-        # Set Chrome path
-        co.set_browser_path(chrome_path)
+        # 设置Chrome浏览器路径
+        co.set_browser_path(chrome_path)  # 指定Chrome可执行文件的位置
         
-        # Use incognito mode
-        co.set_argument("--incognito")
+        # 启用隐身模式，避免使用现有配置文件和缓存
+        co.set_argument("--incognito")  # 使用隐身模式，避免历史记录和cookie干扰
 
+        # 在Linux系统上添加额外的安全参数
         if sys.platform == "linux":
-            # Set random port
-            co.set_argument("--no-sandbox")
+            co.set_argument("--no-sandbox")  # Linux系统下禁用沙盒模式，解决某些权限问题
             
-        # Set random port
-        co.auto_port()
+        # 设置随机端口，避免端口冲突
+        co.auto_port()  # 自动选择可用端口，防止多个实例冲突
         
-        # Use headless mode (must be set to False, simulate human operation)
-        co.headless(False)
+        # 设置无头模式（必须为False，以模拟人类操作）
+        co.headless(False)  # 显示浏览器界面，便于调试和模拟真实用户行为
         
+        # 尝试加载Turnstile验证码辅助扩展
         try:
-            # Load extension
-            extension_path = os.path.join(os.getcwd(), "turnstilePatch")
+            # 加载扩展程序，帮助处理Turnstile验证
+            extension_path = os.path.join(os.getcwd(), "turnstilePatch")  # 扩展程序路径
             if os.path.exists(extension_path):
-                co.set_argument("--allow-extensions-in-incognito")
-                co.add_extension(extension_path)
+                co.set_argument("--allow-extensions-in-incognito")  # 允许在隐身模式下使用扩展
+                co.add_extension(extension_path)  # 添加扩展到浏览器
         except Exception as e:
+            # 扩展加载失败时显示错误信息
             if translator:
                 print(f"{Fore.RED}❌ {translator.get('register.extension_load_error', error=str(e))}{Style.RESET_ALL}")
             else:
                 print(f"Error loading extension: {e}")
         
+        # 显示浏览器启动提示
         if translator:
             print(f"{Fore.CYAN}🚀 {translator.get('register.starting_browser')}{Style.RESET_ALL}")
         else:
             print("Starting browser...")
         
-        # Record Chrome processes before launching
+        # 记录启动前的Chrome进程，用于后续识别新进程
         before_pids = []
         try:
-            import psutil
-            before_pids = [p.pid for p in psutil.process_iter() if 'chrome' in p.name().lower()]
+            import psutil  # 导入进程管理模块
+            before_pids = [p.pid for p in psutil.process_iter() if 'chrome' in p.name().lower()]  # 获取所有Chrome进程ID
         except:
-            pass
+            pass  # 忽略psutil导入或使用错误
             
-        # Launch browser
-        page = ChromiumPage(co)
+        # 启动浏览器
+        page = ChromiumPage(co)  # 使用配置好的选项创建浏览器页面对象
         
-        # Wait a moment for Chrome to fully launch
-        time.sleep(1)
+        # 等待Chrome完全启动
+        time.sleep(1)  # 短暂等待，确保浏览器进程完全初始化
         
-        # Record Chrome processes after launching and find new ones
+        # 记录启动后的Chrome进程，并找出新增的进程
         try:
             import psutil
-            after_pids = [p.pid for p in psutil.process_iter() if 'chrome' in p.name().lower()]
-            # Find new Chrome processes
-            new_pids = [pid for pid in after_pids if pid not in before_pids]
-            _chrome_process_ids.extend(new_pids)
+            after_pids = [p.pid for p in psutil.process_iter() if 'chrome' in p.name().lower()]  # 获取启动后的所有Chrome进程
+            # 找出新增的Chrome进程
+            new_pids = [pid for pid in after_pids if pid not in before_pids]  # 计算差集，获取新启动的进程
+            _chrome_process_ids.extend(new_pids)  # 将新进程ID添加到全局列表
             
+            # 显示进程跟踪信息
             if _chrome_process_ids:
-                print(f"Tracking {len(_chrome_process_ids)} Chrome processes")
+                print(f"Tracking {len(_chrome_process_ids)} Chrome processes")  # 显示跟踪的进程数量
             else:
-                print(f"{Fore.YELLOW}Warning: No new Chrome processes detected to track{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}Warning: No new Chrome processes detected to track{Style.RESET_ALL}")  # 警告：未检测到新进程
         except Exception as e:
-            print(f"Warning: Could not track Chrome processes: {e}")
+            print(f"Warning: Could not track Chrome processes: {e}")  # 进程跟踪失败的警告
             
+        # 返回配置对象和浏览器页面对象
         return config, page
 
     except Exception as e:
+        # 处理浏览器设置过程中的任何异常
         if translator:
             print(f"{Fore.RED}❌ {translator.get('register.browser_setup_error', error=str(e))}{Style.RESET_ALL}")
         else:
             print(f"Error setting up browser: {e}")
-        raise
+        raise  # 重新抛出异常，让调用者处理
 
 def handle_turnstile(page, config, translator=None):
     """Handle Turnstile verification"""
@@ -700,67 +708,91 @@ def handle_sign_in(browser_tab, email, password, translator=None):
         return False
 
 def main(email=None, password=None, first_name=None, last_name=None, email_tab=None, controller=None, translator=None):
-    """Main function, can receive account information, email tab, and translator"""
+    """
+    主函数，执行Cursor账号注册流程
+    
+    接收账号信息、邮箱标签页和翻译器实例，协调整个注册过程，
+    包括浏览器启动、表单填写、验证码处理等步骤。
+    
+    参数:
+        email (str, 可选): 用户邮箱地址
+        password (str, 可选): 用户密码
+        first_name (str, 可选): 用户名
+        last_name (str, 可选): 用户姓
+        email_tab (WebDriver, 可选): 邮箱标签页实例，用于自动获取验证码
+        controller (object, 可选): 控制器实例，用于手动获取验证码
+        translator (Translator, 可选): 翻译器实例，用于多语言支持
+        
+    返回值:
+        tuple: (bool, WebDriver) 注册是否成功及浏览器标签页实例
+    """
     global _translator
     global _chrome_process_ids
-    _translator = translator  # Save to global variable
-    _chrome_process_ids = []  # Reset the process IDs list
+    _translator = translator  # 保存翻译器到全局变量，便于其他函数使用
+    _chrome_process_ids = []  # 重置Chrome进程ID列表，用于后续清理
     
+    # 注册信号处理器，确保程序被中断时能够清理资源
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
     page = None
     success = False
     try:
+        # 设置并启动WebDriver
         config, page = setup_driver(translator)
         if translator:
             print(f"{Fore.CYAN}🚀 {translator.get('register.browser_started')}{Style.RESET_ALL}")
         
-        # Visit registration page
+        # 设置注册页面URL
         url = "https://authenticator.cursor.sh/sign-up"
         
-        # Visit page
+        # 访问注册页面，模拟人类输入行为
         simulate_human_input(page, url, config, translator)
         if translator:
             print(f"{Fore.CYAN}🔄 {translator.get('register.waiting_for_page_load')}{Style.RESET_ALL}")
+        # 等待页面加载，使用随机等待时间增加真实性
         time.sleep(get_random_wait_time(config, 'page_load_wait'))
         
-        # If account information is not provided, generate random information
+        # 如果未提供账号信息，则生成随机信息
         if not all([email, password, first_name, last_name]):
+            # 生成随机名字和姓氏
             first_name = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=6)).capitalize()
             last_name = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=6)).capitalize()
+            # 生成随机邮箱
             email = f"{first_name.lower()}{random.randint(100,999)}@example.com"
+            # 生成随机密码
             password = generate_password()
             
-            # Save account information
+            # 将生成的账号信息保存到文件中，便于后续使用
             with open('test_accounts.txt', 'a', encoding='utf-8') as f:
                 f.write(f"\n{'='*50}\n")
                 f.write(f"Email: {email}\n")
                 f.write(f"Password: {password}\n")
                 f.write(f"{'='*50}\n")
         
-        # Fill form
+        # 填写注册表单（名字、姓氏、邮箱）
         if fill_signup_form(page, first_name, last_name, email, config, translator):
             if translator:
                 print(f"\n{Fore.GREEN}✅ {translator.get('register.form_submitted')}{Style.RESET_ALL}")
             
-            # Handle first Turnstile verification
+            # 处理第一次Turnstile人机验证
             if handle_turnstile(page, config, translator):
                 if translator:
                     print(f"\n{Fore.GREEN}✅ {translator.get('register.first_verification_passed')}{Style.RESET_ALL}")
                 
-                # Fill password
+                # 填写密码
                 if fill_password(page, password, config, translator):
                     if translator:
                         print(f"\n{Fore.CYAN}🔄 {translator.get('register.waiting_for_second_verification')}{Style.RESET_ALL}")
                                         
-                    # Handle second Turnstile verification
+                    # 处理第二次Turnstile人机验证
                     if handle_turnstile(page, config, translator):
                         if translator:
                             print(f"\n{Fore.CYAN}🔄 {translator.get('register.waiting_for_verification_code')}{Style.RESET_ALL}")
+                        # 处理邮箱验证码
                         if handle_verification_code(page, email_tab, controller, config, translator):
                             success = True
-                            return True, page
+                            return True, page  # 注册成功，返回成功状态和浏览器实例
                         else:
                             print(f"\n{Fore.RED}❌ {translator.get('register.verification_code_processing_failed') if translator else 'Verification code processing failed'}{Style.RESET_ALL}")
                     else:
@@ -770,18 +802,19 @@ def main(email=None, password=None, first_name=None, last_name=None, email_tab=N
             else:
                 print(f"\n{Fore.RED}❌ {translator.get('register.first_verification_failed') if translator else 'First verification failed'}{Style.RESET_ALL}")
         
-        return False, None
+        return False, None  # 注册失败，返回失败状态和None
         
     except Exception as e:
+        # 捕获并处理所有异常
         print(f"发生错误: {e}")
         return False, None
     finally:
-        if page and not success:  # Only clean up when failed
+        # 确保在失败时清理资源
+        if page and not success:  # 只有在失败时才清理资源
             try:
-                page.quit()
+                page.quit()  # 关闭浏览器
             except:
                 pass
-            cleanup_chrome_processes(translator)
-
+            cleanup_chrome_processes(translator)  # 清理残留的Chrome进程
 if __name__ == "__main__":
     main()  # Run without parameters, use randomly generated information 

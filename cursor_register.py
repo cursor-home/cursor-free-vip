@@ -56,38 +56,51 @@ class CursorRegistration:
         参数:
             translator: 翻译器对象，用于多语言支持，可以为None
         """
+        # 保存翻译器对象，用于多语言支持
         self.translator = translator
-        # Set to display mode
+        # 设置浏览器为显示模式（非无头模式）
         os.environ['BROWSER_HEADLESS'] = 'False'
+        # 初始化浏览器对象为None
         self.browser = None
+        # 初始化控制器对象为None
         self.controller = None
+        # 设置临时邮箱网站URL
         self.mail_url = "https://yopmail.com/zh/email-generator"
+        # 设置Cursor注册页面URL
         self.sign_up_url = "https://authenticator.cursor.sh/sign-up"
+        # 设置Cursor设置页面URL
         self.settings_url = "https://www.cursor.com/settings"
+        # 初始化邮箱地址为None
         self.email_address = None
+        # 初始化注册页面标签为None
         self.signup_tab = None
+        # 初始化邮箱页面标签为None
         self.email_tab = None
         
-        # Account information
+        # 生成随机密码
         self.password = self._generate_password()
-        # Generate first name and last name separately
+        # 从预设列表中随机选择一个名字
         first_name = random.choice([
             "James", "John", "Robert", "Michael", "William", "David", "Joseph", "Thomas",
             "Emma", "Olivia", "Ava", "Isabella", "Sophia", "Mia", "Charlotte", "Amelia",
             "Liam", "Noah", "Oliver", "Elijah", "Lucas", "Mason", "Logan", "Alexander"
         ])
+        # 从预设列表中随机选择一个姓氏
         self.last_name = random.choice([
             "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
             "Anderson", "Wilson", "Taylor", "Thomas", "Moore", "Martin", "Jackson", "Lee",
             "Thompson", "White", "Harris", "Clark", "Lewis", "Walker", "Hall", "Young"
         ])
         
-        # Modify first letter of first name
+        # 修改名字的首字母，增加随机性
         new_first_letter = random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
         self.first_name = new_first_letter + first_name[1:]
         
+        # 打印生成的密码信息
         print(f"\n{Fore.CYAN}{EMOJI['PASSWORD']} {self.translator.get('register.password')}: {self.password} {Style.RESET_ALL}")
+        # 打印生成的名字信息
         print(f"{Fore.CYAN}{EMOJI['FORM']} {self.translator.get('register.first_name')}: {self.first_name} {Style.RESET_ALL}")
+        # 打印生成的姓氏信息
         print(f"{Fore.CYAN}{EMOJI['FORM']} {self.translator.get('register.last_name')}: {self.last_name} {Style.RESET_ALL}")
 
     def _generate_password(self, length=12):
@@ -102,7 +115,9 @@ class CursorRegistration:
         返回值:
             str: 生成的随机密码
         """
+        # 定义密码可能包含的字符集
         chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+        # 从字符集中随机选择指定长度的字符，并拼接成密码
         return ''.join(random.choices(chars, k=length))
 
     def setup_email(self):
@@ -115,25 +130,30 @@ class CursorRegistration:
             bool: 设置成功返回True，否则返回False
         """
         try:
+            # 打印开始设置临时邮箱的信息
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.browser_start')}...{Style.RESET_ALL}")
             
-            # Create a temporary email using new_tempemail, passing translator
+            # 导入临时邮箱模块
             from new_tempemail import NewTempEmail
-            self.temp_email = NewTempEmail(self.translator)  # Pass translator
+            # 创建临时邮箱对象，传入翻译器
+            self.temp_email = NewTempEmail(self.translator)
             
-            # Create a temporary email
+            # 创建临时邮箱地址
             email_address = self.temp_email.create_email()
+            # 如果创建失败，打印错误信息并返回False
             if not email_address:
                 print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.email_create_failed')}{Style.RESET_ALL}")
                 return False
             
-            # Save email address
+            # 保存创建的邮箱地址
             self.email_address = email_address
-            self.email_tab = self.temp_email  # Pass NewTempEmail instance
+            # 保存临时邮箱对象实例
+            self.email_tab = self.temp_email
             
             return True
             
         except Exception as e:
+            # 捕获异常，打印错误信息
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.email_setup_failed', error=str(e))}{Style.RESET_ALL}")
             return False
 
@@ -149,28 +169,31 @@ class CursorRegistration:
         """
         browser_tab = None
         try:
+            # 打印开始注册的信息
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.register_start')}...{Style.RESET_ALL}")
             
-            # Directly use new_signup.py to sign up
+            # 导入注册模块
             from new_signup import main as new_signup_main
             
-            # Execute the new registration process, passing translator
+            # 执行注册流程，传入所有必要参数
             result, browser_tab = new_signup_main(
-                email=self.email_address,
-                password=self.password,
-                first_name=self.first_name,
-                last_name=self.last_name,
-                email_tab=self.email_tab,
-                controller=self.controller,
-                translator=self.translator
+                email=self.email_address,          # 邮箱地址
+                password=self.password,            # 密码
+                first_name=self.first_name,        # 名字
+                last_name=self.last_name,          # 姓氏
+                email_tab=self.email_tab,          # 邮箱标签页
+                controller=self.controller,        # 控制器
+                translator=self.translator         # 翻译器
             )
             
+            # 如果注册成功
             if result:
-                # Use the returned browser instance to get account information
-                self.signup_tab = browser_tab  # Save browser instance
+                # 保存浏览器实例
+                self.signup_tab = browser_tab
+                # 获取账号信息
                 success = self._get_account_info()
                 
-                # Close browser after getting information
+                # 获取信息后关闭浏览器
                 if browser_tab:
                     try:
                         browser_tab.quit()
@@ -182,10 +205,11 @@ class CursorRegistration:
             return False
             
         except Exception as e:
+            # 捕获异常，打印错误信息
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.register_process_error', error=str(e))}{Style.RESET_ALL}")
             return False
         finally:
-            # Ensure browser is closed in any case
+            # 确保在任何情况下浏览器都会被关闭
             if browser_tab:
                 try:
                     browser_tab.quit()
@@ -202,45 +226,68 @@ class CursorRegistration:
             bool: 获取成功返回True，否则返回False
         """
         try:
+            # 导航到设置页面
             self.signup_tab.get(self.settings_url)
+            # 等待页面加载
             time.sleep(2)
             
+            # 定义使用量信息的CSS选择器
             usage_selector = (
                 "css:div.col-span-2 > div > div > div > div > "
                 "div:nth-child(1) > div.flex.items-center.justify-between.gap-2 > "
                 "span.font-mono.text-sm\\/\\[0\\.875rem\\]"
             )
+            # 查找使用量元素
             usage_ele = self.signup_tab.ele(usage_selector)
+            # 默认使用量为"未知"
             total_usage = "未知"
+            # 如果找到使用量元素，提取使用量信息
             if usage_ele:
                 total_usage = usage_ele.text.split("/")[-1].strip()
 
+            # 打印使用量信息
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('register.total_usage', usage=total_usage)}{Style.RESET_ALL}")
+            # 打印开始获取令牌的信息
             print(f"{Fore.CYAN}{EMOJI['WAIT']} {self.translator.get('register.get_token')}...{Style.RESET_ALL}")
+            # 设置最大尝试次数
             max_attempts = 30
+            # 设置重试间隔（秒）
             retry_interval = 2
+            # 初始化尝试次数
             attempts = 0
 
+            # 循环尝试获取令牌
             while attempts < max_attempts:
                 try:
+                    # 获取所有cookies
                     cookies = self.signup_tab.cookies()
+                    # 遍历cookies寻找会话令牌
                     for cookie in cookies:
                         if cookie.get("name") == "WorkosCursorSessionToken":
+                            # 提取令牌值
                             token = cookie["value"].split("%3A%3A")[1]
+                            # 打印获取令牌成功的信息
                             print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.token_success')}{Style.RESET_ALL}")
+                            # 保存账号信息
                             self._save_account_info(token, total_usage)
                             return True
 
+                    # 增加尝试次数
                     attempts += 1
+                    # 如果未达到最大尝试次数，等待后重试
                     if attempts < max_attempts:
                         print(f"{Fore.YELLOW}{EMOJI['WAIT']} {self.translator.get('register.token_attempt', attempt=attempts, time=retry_interval)}{Style.RESET_ALL}")
                         time.sleep(retry_interval)
                     else:
+                        # 达到最大尝试次数，打印失败信息
                         print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.token_max_attempts', max=max_attempts)}{Style.RESET_ALL}")
 
                 except Exception as e:
+                    # 捕获异常，打印错误信息
                     print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.token_failed', error=str(e))}{Style.RESET_ALL}")
+                    # 增加尝试次数
                     attempts += 1
+                    # 如果未达到最大尝试次数，等待后重试
                     if attempts < max_attempts:
                         print(f"{Fore.YELLOW}{EMOJI['WAIT']} {self.translator.get('register.token_attempt', attempt=attempts, time=retry_interval)}{Style.RESET_ALL}")
                         time.sleep(retry_interval)
@@ -248,6 +295,7 @@ class CursorRegistration:
             return False
 
         except Exception as e:
+            # 捕获异常，打印错误信息
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.account_error', error=str(e))}{Style.RESET_ALL}")
             return False
 
@@ -266,32 +314,46 @@ class CursorRegistration:
             bool: 保存成功返回True，否则返回False
         """
         try:
-            # Update authentication information first
+            # 打印开始更新认证信息的消息
             print(f"{Fore.CYAN}{EMOJI['KEY']} {self.translator.get('register.update_cursor_auth_info')}...{Style.RESET_ALL}")
+            # 更新Cursor认证信息
             if self.update_cursor_auth(email=self.email_address, access_token=token, refresh_token=token):
+                # 更新成功，打印成功信息
                 print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.cursor_auth_info_updated')}...{Style.RESET_ALL}")
             else:
+                # 更新失败，打印失败信息
                 print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.cursor_auth_info_update_failed')}...{Style.RESET_ALL}")
 
-            # Reset machine ID
+            # 打印开始重置机器ID的信息
             print(f"{Fore.CYAN}{EMOJI['UPDATE']} {self.translator.get('register.reset_machine_id')}...{Style.RESET_ALL}")
-            resetter = MachineIDResetter(self.translator)  # Pass translator when creating instance
-            if not resetter.reset_machine_ids():  # Call reset_machine_ids method directly
+            # 创建机器ID重置器，传入翻译器
+            resetter = MachineIDResetter(self.translator)
+            # 执行机器ID重置
+            if not resetter.reset_machine_ids():
+                # 重置失败，抛出异常
                 raise Exception("Failed to reset machine ID")
             
-            # Save account information to file
+            # 将账号信息保存到文件
             with open('cursor_accounts.txt', 'a', encoding='utf-8') as f:
+                # 写入分隔线
                 f.write(f"\n{'='*50}\n")
+                # 写入邮箱信息
                 f.write(f"Email: {self.email_address}\n")
+                # 写入密码信息
                 f.write(f"Password: {self.password}\n")
+                # 写入令牌信息
                 f.write(f"Token: {token}\n")
+                # 写入使用量限制信息
                 f.write(f"Usage Limit: {total_usage}\n")
+                # 写入分隔线
                 f.write(f"{'='*50}\n")
                 
+            # 打印保存成功的信息
             print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.account_info_saved')}...{Style.RESET_ALL}")
             return True
             
         except Exception as e:
+            # 捕获异常，打印错误信息
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.save_account_info_failed', error=str(e))}{Style.RESET_ALL}")
             return False
 
@@ -305,13 +367,16 @@ class CursorRegistration:
             bool: 注册流程成功返回True，否则返回False
         """
         try:
+            # 设置临时邮箱
             if self.setup_email():
+                # 如果邮箱设置成功，进行Cursor注册
                 if self.register_cursor():
+                    # 注册成功，打印完成信息
                     print(f"\n{Fore.GREEN}{EMOJI['DONE']} {self.translator.get('register.cursor_registration_completed')}...{Style.RESET_ALL}")
                     return True
             return False
         finally:
-            # Close email tab
+            # 确保在任何情况下都关闭临时邮箱标签页
             if hasattr(self, 'temp_email'):
                 try:
                     self.temp_email.close()
@@ -333,7 +398,9 @@ class CursorRegistration:
         返回值:
             bool: 更新成功返回True，否则返回False
         """
+        # 创建认证管理器，传入翻译器
         auth_manager = CursorAuth(translator=self.translator)
+        # 调用更新认证方法，传入邮箱和令牌信息
         return auth_manager.update_auth(email, access_token, refresh_token)
 
 def main(translator=None):

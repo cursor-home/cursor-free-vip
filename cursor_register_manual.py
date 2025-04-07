@@ -123,17 +123,28 @@ class CursorRegistration:
             bool: 设置成功返回True，失败返回False
         """
         try:
+            # 显示提示信息，引导用户输入邮箱地址
+            # 如果翻译器可用，使用翻译后的提示；否则使用默认中文提示
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.manual_email_input') if self.translator else '请输入您的邮箱地址:'}")
+            
+            # 获取用户输入的邮箱地址并去除首尾空格
             self.email_address = input().strip()
             
+            # 验证邮箱格式：检查是否包含@符号
+            # 这是一个简单的验证，实际应用中可能需要更复杂的验证逻辑
             if '@' not in self.email_address:
+                # 显示错误信息：邮箱格式无效
                 print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.invalid_email') if self.translator else '无效的邮箱地址'}{Style.RESET_ALL}")
                 return False
-                
+            
+            # 显示确认信息：用户输入的邮箱地址
+            # 使用彩色输出和表情符号增强用户体验
             print(f"{Fore.CYAN}{EMOJI['MAIL']} {self.translator.get('register.email_address')}: {self.email_address}\n{Style.RESET_ALL}")
             return True
             
         except Exception as e:
+            # 捕获并处理所有可能的异常
+            # 显示错误信息，包含具体的异常内容
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.email_setup_failed', error=str(e))}{Style.RESET_ALL}")
             return False
 
@@ -172,50 +183,64 @@ class CursorRegistration:
         返回值:
             bool: 注册成功返回True，失败返回False
         """
+        # 初始化浏览器标签变量为None，用于后续跟踪和关闭浏览器
         browser_tab = None
         try:
+            # 显示注册开始的提示信息，使用彩色输出和表情符号增强用户体验
+            # 如果翻译器可用，使用翻译后的提示；否则使用默认提示
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.register_start')}...{Style.RESET_ALL}")
             
-            # Use new_signup.py directly for registration
+            # 导入new_signup模块中的main函数，该模块包含实际的注册逻辑
             from new_signup import main as new_signup_main
             
-            # Execute new registration process, passing translator
+            # 调用new_signup_main函数执行注册流程
+            # 传递用户信息（邮箱、密码、姓名）和控制器实例
+            # email_tab设为None表示不需要单独的邮箱标签页
+            # 函数返回注册结果和浏览器标签页对象
             result, browser_tab = new_signup_main(
-                email=self.email_address,
-                password=self.password,
-                first_name=self.first_name,
-                last_name=self.last_name,
-                email_tab=None,  # No email tab needed
-                controller=self,  # Pass self instead of self.controller
-                translator=self.translator
+                email=self.email_address,        # 用户邮箱地址
+                password=self.password,          # 用户密码
+                first_name=self.first_name,      # 用户名
+                last_name=self.last_name,        # 用户姓
+                email_tab=None,                  # 不需要单独的邮箱标签页
+                controller=self,                 # 传递当前实例作为控制器
+                translator=self.translator        # 传递翻译器实例
             )
             
+            # 如果注册成功（result为True）
             if result:
-                # Use the returned browser instance to get account information
-                self.signup_tab = browser_tab  # Save browser instance
+                # 保存浏览器标签页实例，以便后续获取账号信息
+                self.signup_tab = browser_tab
+                # 调用_get_account_info方法获取账号详细信息（如令牌）
                 success = self._get_account_info()
                 
-                # Close browser after getting information
+                # 获取账号信息后，尝试关闭浏览器
+                # 使用try-except块防止关闭浏览器时的异常中断流程
                 if browser_tab:
                     try:
-                        browser_tab.quit()
+                        browser_tab.quit()  # 关闭浏览器
                     except:
-                        pass
+                        pass  # 忽略关闭过程中的任何异常
                 
+                # 返回获取账号信息的结果
                 return success
             
+            # 如果注册失败，直接返回False
             return False
             
         except Exception as e:
+            # 捕获并处理注册过程中的所有异常
+            # 显示错误信息，包含具体的异常内容
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.register_process_error', error=str(e))}{Style.RESET_ALL}")
-            return False
+            return False  # 发生异常时返回False表示注册失败
         finally:
-            # Ensure browser is closed in any case
+            # finally块确保无论注册成功与否，浏览器都会被关闭
+            # 这是一个安全措施，防止浏览器进程在后台残留
             if browser_tab:
                 try:
-                    browser_tab.quit()
+                    browser_tab.quit()  # 尝试关闭浏览器
                 except:
-                    pass
+                    pass  # 忽略关闭过程中的任何异常
                 
     def _get_account_info(self):
         """
@@ -228,55 +253,86 @@ class CursorRegistration:
             bool: 获取成功返回True，失败返回False
         """
         try:
+            # 访问Cursor设置页面
             self.signup_tab.get(self.settings_url)
+            # 等待页面加载完成
             time.sleep(2)
             
+            # 定义CSS选择器，用于定位使用配额信息元素
             usage_selector = (
                 "css:div.col-span-2 > div > div > div > div > "
                 "div:nth-child(1) > div.flex.items-center.justify-between.gap-2 > "
                 "span.font-mono.text-sm\\/\\[0\\.875rem\\]"
             )
+            # 使用选择器查找使用配额元素
             usage_ele = self.signup_tab.ele(usage_selector)
+            # 默认设置使用配额为"未知"
             total_usage = "未知"
+            # 如果找到了使用配额元素，则提取其文本内容
             if usage_ele:
+                # 分割文本并获取最后一部分（总配额）
                 total_usage = usage_ele.text.split("/")[-1].strip()
 
+            # 打印总使用配额信息
             print(f"Total Usage: {total_usage}\n")
+            # 显示正在获取令牌的提示信息
             print(f"{Fore.CYAN}{EMOJI['WAIT']} {self.translator.get('register.get_token')}...{Style.RESET_ALL}")
+            
+            # 设置最大尝试次数和重试间隔
             max_attempts = 30
             retry_interval = 2
             attempts = 0
 
+            # 循环尝试获取令牌，直到成功或达到最大尝试次数
             while attempts < max_attempts:
                 try:
+                    # 获取浏览器中的所有cookies
                     cookies = self.signup_tab.cookies()
+                    # 遍历cookies寻找包含令牌的cookie
                     for cookie in cookies:
+                        # 查找名为"WorkosCursorSessionToken"的cookie
                         if cookie.get("name") == "WorkosCursorSessionToken":
+                            # 从cookie值中提取令牌部分
                             token = cookie["value"].split("%3A%3A")[1]
+                            # 显示获取令牌成功的消息
                             print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.token_success')}{Style.RESET_ALL}")
+                            # 保存账号信息（令牌和使用配额）
                             self._save_account_info(token, total_usage)
+                            # 返回成功
                             return True
 
+                    # 增加尝试次数
                     attempts += 1
+                    # 如果未达到最大尝试次数，则等待后重试
                     if attempts < max_attempts:
+                        # 显示重试信息
                         print(f"{Fore.YELLOW}{EMOJI['WAIT']} {self.translator.get('register.token_attempt', attempt=attempts, time=retry_interval)}{Style.RESET_ALL}")
+                        # 等待指定的重试间隔
                         time.sleep(retry_interval)
                     else:
+                        # 达到最大尝试次数，显示失败信息
                         print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.token_max_attempts', max=max_attempts)}{Style.RESET_ALL}")
 
                 except Exception as e:
+                    # 捕获并处理获取令牌过程中的异常
                     print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.token_failed', error=str(e))}{Style.RESET_ALL}")
+                    # 增加尝试次数
                     attempts += 1
+                    # 如果未达到最大尝试次数，则等待后重试
                     if attempts < max_attempts:
+                        # 显示重试信息
                         print(f"{Fore.YELLOW}{EMOJI['WAIT']} {self.translator.get('register.token_attempt', attempt=attempts, time=retry_interval)}{Style.RESET_ALL}")
+                        # 等待指定的重试间隔
                         time.sleep(retry_interval)
 
+            # 所有尝试都失败，返回失败结果
             return False
 
         except Exception as e:
+            # 捕获并处理整个获取账号信息过程中的异常
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.account_error', error=str(e))}{Style.RESET_ALL}")
+            # 返回失败结果
             return False
-
     def _save_account_info(self, token, total_usage):
         """
         保存账号信息到本地
@@ -289,21 +345,32 @@ class CursorRegistration:
             total_usage: 账号总使用量
         """
         try:
+            # 显示保存账号信息的开始提示，使用青色文字和钥匙表情
+            # 如果翻译器可用则使用翻译后的消息，否则使用默认中文消息
             print(f"{Fore.CYAN}{EMOJI['KEY']} {self.translator.get('register.saving_account_info') if self.translator else '正在保存账号信息...'}{Style.RESET_ALL}")
             
+            # 显示账号详情的标题，使用青色文字和信息表情
             print(f"\n{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('register.account_details')}:{Style.RESET_ALL}")
+            # 打印分隔线，使用青色文字
             print(f"{Fore.CYAN}{'─' * 50}{Style.RESET_ALL}")
+            # 显示邮箱地址，使用绿色文字
             print(f"{Fore.GREEN}Email: {self.email_address}{Style.RESET_ALL}")
+            # 显示密码，使用绿色文字
             print(f"{Fore.GREEN}Password: {self.password}{Style.RESET_ALL}")
+            # 显示访问令牌，使用绿色文字
             print(f"{Fore.GREEN}Token: {token}{Style.RESET_ALL}")
+            # 显示账号总使用量，使用绿色文字
             print(f"{Fore.GREEN}Total Usage: {total_usage}{Style.RESET_ALL}")
+            # 打印结束分隔线，使用青色文字
             print(f"{Fore.CYAN}{'─' * 50}{Style.RESET_ALL}")
             
-            # Update token in auth
+            # 调用update_cursor_auth方法更新Cursor的认证信息
+            # 传入邮箱地址和访问令牌作为参数
             self.update_cursor_auth(self.email_address, token)
             
+            # 显示账号信息保存成功的提示，使用绿色文字和成功表情
+            # 如果翻译器可用则使用翻译后的消息，否则使用默认中文消息
             print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.account_saved') if self.translator else '账号信息已保存'}{Style.RESET_ALL}")
-            
         except Exception as e:
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.save_failed', error=str(e)) if self.translator else f'保存账号信息失败: {e}'}{Style.RESET_ALL}")
 
@@ -318,18 +385,29 @@ class CursorRegistration:
             bool: 注册成功返回True，失败返回False
         """
         try:
-            # First setup email
+            # 第一步：设置邮箱地址
+            # 调用setup_email方法获取用户输入的邮箱地址
+            # 如果邮箱设置失败（返回False），则终止整个注册流程
             if not self.setup_email():
                 return False
                 
-            # Register Cursor account
+            # 第二步：注册Cursor账号
+            # 调用register_cursor方法执行账号注册流程
+            # 包括启动浏览器、填写表单、处理验证码等步骤
+            # 如果注册过程失败（返回False），则终止整个注册流程
             if not self.register_cursor():
                 return False
                 
+            # 如果上述所有步骤都成功完成，返回True表示整个注册流程成功
             return True
             
         except Exception as e:
+            # 捕获并处理注册过程中可能出现的所有异常
+            # 使用红色文字和错误表情符号显示错误信息
+            # 如果翻译器可用，则使用翻译后的错误消息；否则使用默认中文错误消息
+            # 错误消息中包含具体的异常信息(str(e))，便于调试
             print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.registration_failed', error=str(e)) if self.translator else f'注册过程失败: {e}'}{Style.RESET_ALL}")
+            # 返回False表示注册流程失败
             return False
 
     def update_cursor_auth(self, email=None, access_token=None, refresh_token=None):
