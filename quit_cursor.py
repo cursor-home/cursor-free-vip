@@ -1,3 +1,14 @@
+"""
+quit_cursor.py - Cursor进程终止模块
+
+这个模块负责安全地结束Cursor相关进程，主要功能包括：
+- 检测系统中运行的Cursor进程
+- 尝试优雅地终止这些进程（先发送终止信号，等待一段时间）
+- 提供超时机制和状态反馈
+- 支持多语言显示
+
+适用于需要重启Cursor或清理Cursor进程的情况。
+"""
 import psutil
 import time
 from colorama import Fore, Style, init
@@ -17,12 +28,36 @@ EMOJI = {
 }
 
 class CursorQuitter:
+    """
+    Cursor进程终止管理类
+    
+    提供安全、可控的方式来终止系统中运行的Cursor进程。
+    使用非强制的方式先尝试优雅关闭，给进程一定时间自行关闭。
+    """
     def __init__(self, timeout=5, translator=None):
+        """
+        初始化Cursor终止器
+        
+        参数:
+            timeout (int): 等待进程自行关闭的最大时间（秒）
+            translator: 翻译器对象，用于多语言支持，可以为None
+        """
         self.timeout = timeout
         self.translator = translator  # Use the passed translator
         
     def quit_cursor(self):
-        """Gently close Cursor processes"""
+        """
+        优雅地关闭Cursor进程
+        
+        流程:
+        1. 查找所有Cursor相关进程
+        2. 对每个进程发送终止信号
+        3. 等待进程自行关闭（最长等待self.timeout秒）
+        4. 如果超时后仍有进程运行，报告失败
+        
+        返回值:
+            bool: 如果所有进程成功终止返回True，否则返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['PROCESS']} {self.translator.get('quit_cursor.start')}...{Style.RESET_ALL}")
             cursor_processes = []
@@ -79,7 +114,18 @@ class CursorQuitter:
             return False
 
 def quit_cursor(translator=None, timeout=5):
-    """Convenient function for directly calling the quit function"""
+    """
+    便捷函数，用于直接调用终止Cursor进程的功能
+    
+    这是一个简单的封装函数，创建CursorQuitter实例并调用其quit_cursor方法。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        timeout (int): 等待进程自行关闭的最大时间（秒）
+        
+    返回值:
+        bool: 如果所有进程成功终止返回True，否则返回False
+    """
     quitter = CursorQuitter(timeout, translator)
     return quitter.quit_cursor()
 

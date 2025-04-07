@@ -1,3 +1,14 @@
+"""
+new_signup.py - Cursor新用户注册模块
+
+这个模块负责自动化注册Cursor账号的流程，主要功能包括：
+- 启动Chrome浏览器并自动填写注册表单
+- 处理验证码和Turnstile人机验证
+- 完成邮箱验证和密码设置
+- 自动登录新创建的账号
+
+本模块模拟人类操作，加入随机等待时间，以避免被反自动化系统检测。
+"""
 from DrissionPage import ChromiumOptions, ChromiumPage
 import time
 import os
@@ -16,7 +27,15 @@ _translator = None
 _chrome_process_ids = []
 
 def cleanup_chrome_processes(translator=None):
-    """Clean only Chrome processes launched by this script"""
+    """
+    清理由本脚本启动的Chrome进程。
+    
+    在脚本退出时调用，确保不会留下孤立的Chrome进程。
+    只清理本脚本启动的进程，不影响用户自己打开的Chrome窗口。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+    """
     global _chrome_process_ids
     
     if not _chrome_process_ids:
@@ -45,7 +64,16 @@ def cleanup_chrome_processes(translator=None):
             print(f"清理进程时出错: {e}")
 
 def signal_handler(signum, frame):
-    """Handle Ctrl+C signal"""
+    """
+    处理Ctrl+C等中断信号。
+    
+    当用户按下Ctrl+C或发送中断信号时，确保脚本能够优雅地退出，
+    并清理所有启动的Chrome进程。
+    
+    参数:
+        signum: 信号编号
+        frame: 当前栈帧
+    """
     global _translator
     if _translator:
         print(f"{Fore.CYAN}{_translator.get('register.exit_signal')}{Style.RESET_ALL}")
@@ -55,7 +83,18 @@ def signal_handler(signum, frame):
     os._exit(0)
 
 def simulate_human_input(page, url, config, translator=None):
-    """Visit URL"""
+    """
+    模拟人类访问网页行为。
+    
+    先访问空白页面，然后再访问目标URL，并添加随机等待时间，
+    使行为更像真实用户。
+    
+    参数:
+        page: ChromiumPage对象
+        url: 要访问的目标URL
+        config: 配置对象，包含等待时间设置
+        translator: 翻译器对象，用于多语言支持，可以为None
+    """
     if translator:
         print(f"{Fore.CYAN}🚀 {translator.get('register.visiting_url')}: {url}{Style.RESET_ALL}")
     
@@ -68,7 +107,23 @@ def simulate_human_input(page, url, config, translator=None):
     time.sleep(get_random_wait_time(config, 'page_load_wait'))
 
 def fill_signup_form(page, first_name, last_name, email, config, translator=None):
-    """Fill signup form"""
+    """
+    填写Cursor注册表单。
+    
+    自动填写姓名和邮箱信息，并提交表单。
+    在每个操作之间添加随机等待时间，模拟真实人类输入。
+    
+    参数:
+        page: ChromiumPage对象
+        first_name: 名字
+        last_name: 姓氏
+        email: 电子邮箱地址
+        config: 配置对象，包含等待时间设置
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 表单填写成功返回True，否则返回False
+    """
     try:
         if translator:
             print(f"{Fore.CYAN}📧 {translator.get('register.filling_form')}{Style.RESET_ALL}")
@@ -113,7 +168,15 @@ def fill_signup_form(page, first_name, last_name, email, config, translator=None
         return False
 
 def get_default_chrome_path():
-    """Get default Chrome path"""
+    """
+    获取默认Chrome浏览器路径。
+    
+    根据不同操作系统返回Chrome可执行文件的可能路径。
+    按优先级顺序检查多个常见安装位置。
+    
+    返回值:
+        str: Chrome可执行文件的路径，如果找不到则返回空字符串
+    """
     if sys.platform == "win32":
         paths = [
             os.path.join(os.environ.get('PROGRAMFILES', ''), 'Google/Chrome/Application/chrome.exe'),
@@ -136,7 +199,15 @@ def get_default_chrome_path():
     return ""
 
 def get_user_documents_path():
-    """Get user Documents folder path"""
+    """
+    获取用户文档目录路径。
+    
+    根据不同操作系统返回用户文档目录的路径。
+    对于Linux系统，会特别处理sudo用户的情况。
+    
+    返回值:
+        str: 用户文档目录的完整路径
+    """
     if sys.platform == "win32":
         return os.path.join(os.path.expanduser("~"), "Documents")
     elif sys.platform == "darwin":
@@ -150,12 +221,22 @@ def get_user_documents_path():
 
 def get_random_wait_time(config, timing_type='page_load_wait'):
     """
-    Get random wait time from config
-    Args:
-        config: ConfigParser object
-        timing_type: Type of timing to get (page_load_wait, input_wait, submit_wait)
-    Returns:
-        float: Random wait time or fixed time
+    根据配置获取随机等待时间。
+    
+    从配置中读取等待时间设置，支持固定时间和时间范围。
+    用于模拟人类操作的随机延迟，避免被检测为自动化程序。
+    
+    参数:
+        config: ConfigParser配置对象
+        timing_type: 等待时间类型(如page_load_wait, input_wait, submit_wait等)
+    
+    返回值:
+        float: 随机等待时间（秒）
+        
+    说明:
+        - 支持固定值格式: "0.5"
+        - 支持范围格式: "0.5-1.5"或"0.5,1.5"
+        - 如果配置有误，使用默认值0.1-0.8秒
     """
     try:
         if not config.has_section('Timing'):
@@ -179,7 +260,18 @@ def get_random_wait_time(config, timing_type='page_load_wait'):
         return random.uniform(0.1, 0.8)  # Return default value when error
 
 def setup_driver(translator=None):
-    """Setup browser driver"""
+    """
+    设置并启动Chrome浏览器。
+    
+    配置Chrome启动选项，包括隐身模式、扩展加载等，
+    并记录启动的Chrome进程ID，便于后续清理。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        ChromiumPage: 已配置的浏览器页面对象，如果出错则返回None
+    """
     global _chrome_process_ids
     
     try:

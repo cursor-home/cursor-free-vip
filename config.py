@@ -1,3 +1,14 @@
+"""
+config.py - 配置管理模块
+
+这个模块负责管理程序的配置信息，包括：
+- 创建和读取配置文件
+- 设置默认配置项
+- 根据不同操作系统设置特定路径
+- 提供配置读取和更新功能
+
+配置文件存储在用户文档目录下的.cursor-free-vip/config.ini
+"""
 import os
 import sys
 import configparser
@@ -19,7 +30,20 @@ EMOJI = {
 }
 
 def setup_config(translator=None):
-    """Setup configuration file and return config object"""
+    """
+    设置和初始化配置文件，根据需要创建默认配置。
+    
+    这个函数会检查配置文件是否存在，如果不存在则创建并填充默认值。
+    如果配置文件已存在，则会根据默认配置检查是否缺少配置项，并添加缺失的项。
+    
+    同时，函数会根据不同的操作系统(Windows/Mac/Linux)设置不同的路径配置。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        configparser.ConfigParser: 配置对象，如果出错则返回None
+    """
     try:
         config_dir = os.path.join(get_user_documents_path(), ".cursor-free-vip")
         config_file = os.path.join(config_dir, "config.ini")
@@ -60,6 +84,7 @@ def setup_config(translator=None):
 
         # Add system-specific path configuration
         if sys.platform == "win32":
+            # Windows系统路径配置
             appdata = os.getenv("APPDATA")
             localappdata = os.getenv("LOCALAPPDATA", "")
             default_config['WindowsPaths'] = {
@@ -75,6 +100,7 @@ def setup_config(translator=None):
             os.makedirs(os.path.dirname(default_config['WindowsPaths']['storage_path']), exist_ok=True)
             
         elif sys.platform == "darwin":
+            # macOS系统路径配置
             default_config['MacPaths'] = {
                 'storage_path': os.path.abspath(os.path.expanduser("~/Library/Application Support/Cursor/User/globalStorage/storage.json")),
                 'sqlite_path': os.path.abspath(os.path.expanduser("~/Library/Application Support/Cursor/User/globalStorage/state.vscdb")),
@@ -88,6 +114,7 @@ def setup_config(translator=None):
             os.makedirs(os.path.dirname(default_config['MacPaths']['storage_path']), exist_ok=True)
             
         elif sys.platform == "linux":
+            # Linux系统路径配置，需要更复杂的检查逻辑
             # Get the actual user's home directory, handling both sudo and normal cases
             sudo_user = os.environ.get('SUDO_USER')
             current_user = sudo_user if sudo_user else (os.getenv('USER') or os.getenv('USERNAME'))
@@ -233,7 +260,16 @@ def setup_config(translator=None):
         return None
     
 def print_config(config, translator=None):
-    """Print configuration in a readable format"""
+    """
+    以可读格式打印配置信息
+    
+    将配置以分组和彩色方式打印出来，方便用户查看。
+    对于布尔值配置项会显示为"已启用"或"已禁用"并使用不同颜色。
+    
+    参数:
+        config: 配置对象
+        translator: 翻译器对象，用于多语言支持，可以为None
+    """
     if not config:
         print(f"{Fore.YELLOW}{EMOJI['WARNING']} {translator.get('config.config_not_available') if translator else 'Configuration not available'}{Style.RESET_ALL}")
         return
@@ -261,11 +297,16 @@ def print_config(config, translator=None):
 
 def force_update_config(translator=None):
     """
-    Force update configuration file with latest defaults
-    Args:
-        translator: Translator instance
-    Returns:
-        ConfigParser instance or None if failed
+    强制更新配置文件
+    
+    创建配置文件的备份，然后重新初始化配置。
+    在需要重置配置或修复损坏的配置文件时使用。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        configparser.ConfigParser: 更新后的配置对象，如果出错则返回None
     """
     try:
         config_dir = os.path.join(get_user_documents_path(), ".cursor-free-vip")
@@ -297,5 +338,16 @@ def force_update_config(translator=None):
         return None
 
 def get_config(translator=None):
-    """Get existing config or create new one"""
+    """
+    获取配置对象
+    
+    从配置文件中读取配置，如果配置文件不存在则创建默认配置。
+    这是程序中获取配置的主要接口。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        configparser.ConfigParser: 配置对象，如果出错则返回None
+    """
     return setup_config(translator) 

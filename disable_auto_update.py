@@ -1,3 +1,15 @@
+"""
+disable_auto_update.py - Cursor自动更新禁用模块
+
+本模块提供了禁用Cursor自动更新功能的实现，主要功能包括：
+- 删除Cursor更新程序目录
+- 清空更新配置文件
+- 创建阻止文件防止更新
+- 修改产品配置文件移除更新URL
+
+通过这些方法的组合使用，可以有效防止Cursor自动更新，
+保持当前安装的版本不变。
+"""
 import os
 import sys
 import platform
@@ -24,7 +36,28 @@ EMOJI = {
 }
 
 class AutoUpdateDisabler:
+    """
+    自动更新禁用类
+    
+    负责处理禁用Cursor自动更新的各种操作，包括：
+    - 结束Cursor进程
+    - 删除更新器目录
+    - 清空更新配置文件
+    - 创建阻止文件
+    - 移除更新URL
+    
+    根据不同操作系统自动选择适当的文件路径和禁用方法。
+    """
     def __init__(self, translator=None):
+        """
+        初始化自动更新禁用器
+        
+        设置各种文件路径，包括更新程序目录、更新配置文件和产品信息文件。
+        会从配置文件获取路径，如果配置不可用则使用默认路径。
+        
+        参数:
+            translator: 翻译器对象，用于多语言支持，可以为None
+        """
         self.translator = translator
         self.system = platform.system()
         
@@ -67,7 +100,15 @@ class AutoUpdateDisabler:
             self.product_json_path = self.product_json_paths.get(self.system)
 
     def _remove_update_url(self):
-        """Remove update URL"""
+        """
+        移除更新URL
+        
+        修改product.json文件，删除所有更新相关的URL，
+        防止应用检查和下载更新。会创建原文件备份。
+        
+        返回值:
+            bool: 操作成功返回True，失败返回False
+        """
         try:
             original_stat = os.stat(self.product_json_path)
             original_mode = original_stat.st_mode
@@ -107,7 +148,15 @@ class AutoUpdateDisabler:
             return False
 
     def _kill_cursor_processes(self):
-        """End all Cursor processes"""
+        """
+        结束所有Cursor进程
+        
+        在执行更新禁用操作前，需要确保所有Cursor进程已关闭，
+        以避免文件锁定和权限问题。根据不同操作系统使用不同的命令。
+        
+        返回值:
+            bool: 操作成功返回True，失败返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['PROCESS']} {self.translator.get('update.killing_processes') if self.translator else '正在结束 Cursor 进程...'}{Style.RESET_ALL}")
             
@@ -124,7 +173,15 @@ class AutoUpdateDisabler:
             return False
 
     def _remove_updater_directory(self):
-        """Delete updater directory"""
+        """
+        删除更新程序目录
+        
+        完全删除Cursor更新程序目录，阻止更新程序的运行。
+        如果目录被锁定，则会跳过并继续执行其他操作。
+        
+        返回值:
+            bool: 操作成功返回True，失败返回False
+        """
         try:
             updater_path = self.updater_path
             if not updater_path:
@@ -148,7 +205,15 @@ class AutoUpdateDisabler:
             return True
     
     def _clear_update_yml_file(self):
-        """Clear update.yml file"""
+        """
+        清空更新配置文件
+        
+        将update.yml文件内容清空，防止应用检索更新信息。
+        如果文件被锁定，则会跳过并继续执行其他操作。
+        
+        返回值:
+            bool: 操作成功返回True，失败返回False
+        """
         try:
             update_yml_path = self.update_yml_path
             if not update_yml_path:
@@ -172,7 +237,15 @@ class AutoUpdateDisabler:
             return False
 
     def _create_blocking_file(self):
-        """Create blocking files"""
+        """
+        创建阻止文件
+        
+        创建只读文件替代更新程序目录和配置文件，
+        防止应用创建或修改这些文件，从而阻止更新过程。
+        
+        返回值:
+            bool: 操作成功返回True，失败返回False
+        """
         try:
             # 检查 updater_path
             updater_path = self.updater_path
@@ -221,30 +294,26 @@ class AutoUpdateDisabler:
             return True  # 返回 True 以继续执行后续步骤
 
     def disable_auto_update(self):
-        """Disable auto update"""
+        """
+        禁用自动更新
+        
+        执行完整的禁用自动更新流程，包括结束进程、
+        删除目录、清空配置、创建阻止文件和移除更新URL。
+        综合使用多种方法确保更新被彻底禁用。
+        
+        返回值:
+            bool: 所有操作都成功完成返回True，否则返回False
+        """
         try:
-            print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('update.start_disable') if self.translator else '开始禁用自动更新...'}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{EMOJI['STOP']} {self.translator.get('update.disabling_auto_update') if self.translator else '正在禁用 Cursor 自动更新...'}{Style.RESET_ALL}")
             
-            # 1. End processes
-            if not self._kill_cursor_processes():
-                return False
-                
-            # 2. Delete directory - 即使失败也继续执行
+            self._kill_cursor_processes()
             self._remove_updater_directory()
-                
-            # 3. Clear update.yml file
-            if not self._clear_update_yml_file():
-                return False
-                
-            # 4. Create blocking file
-            if not self._create_blocking_file():
-                return False
-                
-            # 5. Remove update URL from product.json
-            if not self._remove_update_url():
-                return False
-                
-            print(f"{Fore.GREEN}{EMOJI['CHECK']} {self.translator.get('update.disable_success') if self.translator else '自动更新已禁用'}{Style.RESET_ALL}")
+            self._clear_update_yml_file()
+            self._create_blocking_file()
+            self._remove_update_url()
+            
+            print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('update.auto_update_disabled') if self.translator else 'Cursor 自动更新已禁用'}{Style.RESET_ALL}")
             return True
             
         except Exception as e:
@@ -252,17 +321,34 @@ class AutoUpdateDisabler:
             return False
 
 def run(translator=None):
-    """Convenient function for directly calling the disable function"""
-    print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{EMOJI['STOP']} {translator.get('update.title') if translator else 'Disable Cursor Auto Update'}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-
-    disabler = AutoUpdateDisabler(translator)
-    disabler.disable_auto_update()
-
-    print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-    input(f"{EMOJI['INFO']} {translator.get('update.press_enter') if translator else 'Press Enter to Continue...'}")
+    """
+    运行自动更新禁用程序
+    
+    创建AutoUpdateDisabler实例并执行禁用流程。
+    作为模块的主入口点，可以从其他脚本调用。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 禁用操作成功返回True，失败返回False
+    """
+    print(f"\n{Fore.CYAN}{EMOJI['STOP']} {translator.get('update.disable_auto_update_title') if translator else '禁用 Cursor 自动更新'}{Style.RESET_ALL}")
+    
+    try:
+        disabler = AutoUpdateDisabler(translator)
+        result = disabler.disable_auto_update()
+        
+        if result:
+            print(f"{Fore.GREEN}{EMOJI['CHECK']} {translator.get('update.auto_update_disabled_success') if translator else 'Cursor 自动更新已成功禁用'}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}{EMOJI['WARNING']} {translator.get('update.auto_update_disabled_partial') if translator else 'Cursor 自动更新可能未完全禁用，请检查上述错误'}{Style.RESET_ALL}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('update.unexpected_error', error=str(e)) if translator else f'发生意外错误: {e}'}{Style.RESET_ALL}")
+        return False
 
 if __name__ == "__main__":
-    from main import translator as main_translator
-    run(main_translator) 
+    run() 

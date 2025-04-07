@@ -1,3 +1,16 @@
+"""
+cursor_register_manual.py - Cursor手动注册模块
+
+本模块提供了通过手动输入邮箱和验证码来注册Cursor账号的功能，主要功能包括：
+- 生成随机用户信息（姓名、密码）
+- 引导用户手动输入邮箱地址
+- 引导用户手动输入验证码
+- 完成注册流程并获取访问令牌
+- 保存账号信息到本地配置
+
+此模块适用于需要使用自己的真实邮箱注册Cursor账号的用户，
+与其他自动化注册模块相比，更加灵活且支持各类邮箱服务。
+"""
 import os
 from colorama import Fore, Style, init
 import time
@@ -29,7 +42,27 @@ EMOJI = {
 }
 
 class CursorRegistration:
+    """
+    Cursor手动注册类
+    
+    负责处理Cursor账号的手动注册流程，包括：
+    - 生成随机账号信息
+    - 处理邮箱输入和验证
+    - 完成账号注册
+    - 获取和保存访问令牌
+    
+    通过此类，用户可以使用自己的真实邮箱完成Cursor账号注册。
+    """
     def __init__(self, translator=None):
+        """
+        初始化手动注册对象
+        
+        设置基本注册参数，生成随机用户信息，
+        并打印生成的用户信息供用户参考。
+        
+        参数:
+            translator: 翻译器对象，用于多语言支持，可以为None
+        """
         self.translator = translator
         # Set to display mode
         os.environ['BROWSER_HEADLESS'] = 'False'
@@ -64,14 +97,33 @@ class CursorRegistration:
         print(f"{Fore.CYAN}{EMOJI['FORM']} {self.translator.get('register.last_name')}: {self.last_name} {Style.RESET_ALL}")
 
     def _generate_password(self, length=12):
-        """Generate Random Password"""
+        """
+        生成随机密码
+        
+        创建一个包含字母、数字和特殊字符的随机密码，
+        用于注册新的Cursor账号。
+        
+        参数:
+            length: 密码长度，默认为12位
+            
+        返回值:
+            str: 生成的随机密码
+        """
         chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
         return ''.join(random.choices(chars, k=length))
 
     def setup_email(self):
-        """Setup Email"""
+        """
+        设置邮箱地址
+        
+        引导用户手动输入邮箱地址，并进行简单的格式验证。
+        用户需要提供一个可以接收验证码的有效邮箱。
+        
+        返回值:
+            bool: 设置成功返回True，失败返回False
+        """
         try:
-            print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.manual_email_input') if self.translator else 'Please enter your email address:'}")
+            print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.manual_email_input') if self.translator else '请输入您的邮箱地址:'}")
             self.email_address = input().strip()
             
             if '@' not in self.email_address:
@@ -86,9 +138,17 @@ class CursorRegistration:
             return False
 
     def get_verification_code(self):
-        """Manually Get Verification Code"""
+        """
+        手动获取验证码
+        
+        引导用户从邮箱中获取验证码并手动输入。
+        验证码通常是6位数字，由Cursor发送到用户提供的邮箱。
+        
+        返回值:
+            str: 用户输入的验证码，输入无效则返回None
+        """
         try:
-            print(f"{Fore.CYAN}{EMOJI['CODE']} {self.translator.get('register.manual_code_input') if self.translator else 'Please enter the verification code:'}")
+            print(f"{Fore.CYAN}{EMOJI['CODE']} {self.translator.get('register.manual_code_input') if self.translator else '请输入验证码:'}")
             code = input().strip()
             
             if not code.isdigit() or len(code) != 6:
@@ -102,7 +162,16 @@ class CursorRegistration:
             return None
 
     def register_cursor(self):
-        """Register Cursor"""
+        """
+        注册Cursor账号
+        
+        启动浏览器并执行完整的注册流程，包括填写注册表单、
+        处理验证码、完成密码设置等步骤。使用new_signup.py
+        模块实现主要注册逻辑。
+        
+        返回值:
+            bool: 注册成功返回True，失败返回False
+        """
         browser_tab = None
         try:
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.register_start')}...{Style.RESET_ALL}")
@@ -149,7 +218,15 @@ class CursorRegistration:
                     pass
                 
     def _get_account_info(self):
-        """Get Account Information and Token"""
+        """
+        获取账号信息和访问令牌
+        
+        在注册完成后，访问设置页面并提取访问令牌、
+        使用配额等账号信息，以便后续使用。
+        
+        返回值:
+            bool: 获取成功返回True，失败返回False
+        """
         try:
             self.signup_tab.get(self.settings_url)
             time.sleep(2)
@@ -201,70 +278,102 @@ class CursorRegistration:
             return False
 
     def _save_account_info(self, token, total_usage):
-        """Save Account Information to File"""
+        """
+        保存账号信息到本地
+        
+        将获取到的访问令牌、邮箱地址和使用配额等信息
+        保存到本地，并更新Cursor认证信息。
+        
+        参数:
+            token: 访问令牌
+            total_usage: 账号总使用量
+        """
         try:
-            # Update authentication information first
-            print(f"{Fore.CYAN}{EMOJI['KEY']} {self.translator.get('register.update_cursor_auth_info')}...{Style.RESET_ALL}")
-            if self.update_cursor_auth(email=self.email_address, access_token=token, refresh_token=token):
-                print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.cursor_auth_info_updated')}...{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.cursor_auth_info_update_failed')}...{Style.RESET_ALL}")
-
-            # Reset machine ID
-            print(f"{Fore.CYAN}{EMOJI['UPDATE']} {self.translator.get('register.reset_machine_id')}...{Style.RESET_ALL}")
-            resetter = MachineIDResetter(self.translator)  # Create instance with translator
-            if not resetter.reset_machine_ids():  # Call reset_machine_ids method directly
-                raise Exception("Failed to reset machine ID")
+            print(f"{Fore.CYAN}{EMOJI['KEY']} {self.translator.get('register.saving_account_info') if self.translator else '正在保存账号信息...'}{Style.RESET_ALL}")
             
-            # Save account information to file
-            with open('cursor_accounts.txt', 'a', encoding='utf-8') as f:
-                f.write(f"\n{'='*50}\n")
-                f.write(f"Email: {self.email_address}\n")
-                f.write(f"Password: {self.password}\n")
-                f.write(f"Token: {token}\n")
-                f.write(f"Usage Limit: {total_usage}\n")
-                f.write(f"{'='*50}\n")
+            print(f"\n{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('register.account_details')}:{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'─' * 50}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Email: {self.email_address}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Password: {self.password}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Token: {token}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}Total Usage: {total_usage}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'─' * 50}{Style.RESET_ALL}")
+            
+            # Update token in auth
+            self.update_cursor_auth(self.email_address, token)
+            
+            print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.account_saved') if self.translator else '账号信息已保存'}{Style.RESET_ALL}")
+            
+        except Exception as e:
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.save_failed', error=str(e)) if self.translator else f'保存账号信息失败: {e}'}{Style.RESET_ALL}")
+
+    def start(self):
+        """
+        启动注册流程
+        
+        执行完整的手动注册流程，包括邮箱设置、
+        账号注册以及保存账号信息等所有步骤。
+        
+        返回值:
+            bool: 注册成功返回True，失败返回False
+        """
+        try:
+            # First setup email
+            if not self.setup_email():
+                return False
                 
-            print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('register.account_info_saved')}...{Style.RESET_ALL}")
+            # Register Cursor account
+            if not self.register_cursor():
+                return False
+                
             return True
             
         except Exception as e:
-            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.save_account_info_failed', error=str(e))}{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('register.registration_failed', error=str(e)) if self.translator else f'注册过程失败: {e}'}{Style.RESET_ALL}")
             return False
-
-    def start(self):
-        """Start Registration Process"""
-        try:
-            if self.setup_email():
-                if self.register_cursor():
-                    print(f"\n{Fore.GREEN}{EMOJI['DONE']} {self.translator.get('register.cursor_registration_completed')}...{Style.RESET_ALL}")
-                    return True
-            return False
-        finally:
-            # Close email tab
-            if hasattr(self, 'temp_email'):
-                try:
-                    self.temp_email.close()
-                except:
-                    pass
 
     def update_cursor_auth(self, email=None, access_token=None, refresh_token=None):
-        """Convenient function to update Cursor authentication information"""
-        auth_manager = CursorAuth(translator=self.translator)
-        return auth_manager.update_auth(email, access_token, refresh_token)
+        """
+        更新Cursor认证信息
+        
+        将新注册的账号信息更新到Cursor认证系统中，
+        使应用程序可以使用这些凭证进行身份验证。
+        
+        参数:
+            email: 电子邮箱地址
+            access_token: 访问令牌
+            refresh_token: 刷新令牌，可选
+        """
+        auth = CursorAuth()
+        auth.update_auth_info(email=email, access_token=access_token, refresh_token=refresh_token)
 
 def main(translator=None):
-    """Main function to be called from main.py"""
-    print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{EMOJI['START']} {translator.get('register.title')}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-
+    """
+    执行手动注册的主函数
+    
+    创建CursorRegistration实例并执行注册流程。
+    作为模块的主入口点，可以从其他脚本调用。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 注册操作成功返回True，失败返回False
+    """
+    print(f"\n{Fore.CYAN}{EMOJI['START']} {translator.get('register.manual_title') if translator else 'Cursor 手动注册'}{Style.RESET_ALL}")
+    
+    # Create registration instance
     registration = CursorRegistration(translator)
-    registration.start()
-
-    print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-    input(f"{EMOJI['INFO']} {translator.get('register.press_enter')}...")
+    
+    # Start registration process
+    result = registration.start()
+    
+    if result:
+        print(f"\n{Fore.GREEN}{EMOJI['SUCCESS']} {translator.get('register.manual_success') if translator else 'Cursor账号已成功注册！'}{Style.RESET_ALL}")
+    else:
+        print(f"\n{Fore.RED}{EMOJI['ERROR']} {translator.get('register.manual_failed') if translator else 'Cursor账号注册失败'}{Style.RESET_ALL}")
+    
+    return result
 
 if __name__ == "__main__":
-    from main import translator as main_translator
-    main(main_translator) 
+    main() 

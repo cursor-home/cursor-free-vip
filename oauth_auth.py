@@ -1,3 +1,15 @@
+"""
+oauth_auth.py - OAuth授权和认证模块
+
+这个模块负责处理Cursor的OAuth授权流程，主要功能包括：
+- 管理Chrome浏览器配置文件
+- 执行GitHub、Google等第三方OAuth登录
+- 自动化获取授权令牌流程
+- 支持多种登录提供商的授权过程
+
+通过此模块，用户可以使用现有的社交媒体或开发者账号登录Cursor，
+无需单独注册新账号。
+"""
 import os
 from colorama import Fore, Style, init
 import time
@@ -26,7 +38,23 @@ EMOJI = {
 }
 
 class OAuthHandler:
+    """
+    OAuth授权处理类
+    
+    负责管理OAuth授权流程，包括浏览器配置、用户选择和自动认证等。
+    支持GitHub、Google等多种授权提供商，并可以处理不同的浏览器配置文件。
+    """
     def __init__(self, translator=None, auth_type=None):
+        """
+        初始化OAuth处理器
+        
+        设置授权处理器的基本参数，包括翻译器和授权类型。
+        准备浏览器环境，用于后续的授权流程。
+        
+        参数:
+            translator: 翻译器对象，用于多语言支持，可以为None
+            auth_type: 授权类型，如'github'、'google'等
+        """
         self.translator = translator
         self.config = get_config(translator)
         self.auth_type = auth_type  # make sure the auth_type is not None
@@ -35,7 +63,18 @@ class OAuthHandler:
         self.selected_profile = None
         
     def _get_available_profiles(self, user_data_dir):
-        """Get list of available Chrome profiles with their names"""
+        """
+        获取可用的Chrome浏览器配置文件
+        
+        扫描Chrome用户数据目录，获取所有可用的浏览器配置文件及其名称。
+        对于Default配置文件和以Profile开头的配置文件目录进行处理。
+        
+        参数:
+            user_data_dir (str): Chrome用户数据目录的路径
+            
+        返回值:
+            list: 包含(目录名, 显示名称)元组的列表，按字母顺序排序
+        """
         try:
             profiles = []
             profile_names = {}
@@ -63,7 +102,15 @@ class OAuthHandler:
             return []
 
     def _select_profile(self):
-        """Select a Chrome profile to use"""
+        """
+        让用户选择Chrome浏览器配置文件
+        
+        显示可用的配置文件列表，并让用户选择要使用的配置文件。
+        提供退出选项，允许用户取消操作。
+        
+        返回值:
+            bool: 选择成功返回True，取消选择返回False
+        """
         try:
             # Get available profiles
             profiles = self._get_available_profiles(self._get_user_data_directory())
@@ -99,7 +146,16 @@ class OAuthHandler:
             return False
         
     def setup_browser(self):
-        """Setup browser for OAuth flow using selected profile"""
+        """
+        设置浏览器用于OAuth认证流程
+        
+        配置和启动Chrome浏览器，准备执行OAuth认证过程。
+        包括检测平台、获取浏览器路径、结束现有浏览器进程、
+        选择用户配置文件、启动浏览器实例等步骤。
+        
+        返回值:
+            bool: 设置成功返回True，失败或用户取消返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('oauth.initializing_browser_setup') if self.translator else 'Initializing browser setup...'}{Style.RESET_ALL}")
             
@@ -158,7 +214,14 @@ class OAuthHandler:
             return False
 
     def _kill_browser_processes(self):
-        """Kill existing browser processes based on platform"""
+        """
+        终止现有的浏览器进程
+        
+        根据不同操作系统，使用不同命令终止Chrome或Chromium进程。
+        在启动新的浏览器实例前清理现有的进程，避免冲突。
+        
+        注意: 此方法会关闭所有正在运行的Chrome/Chromium实例。
+        """
         try:
             if os.name == 'nt':  # Windows
                 processes = ['chrome.exe', 'chromium.exe']
@@ -174,7 +237,15 @@ class OAuthHandler:
             print(f"{Fore.YELLOW}{EMOJI['INFO']} {self.translator.get('oauth.warning_could_not_kill_existing_browser_processes', error=str(e)) if self.translator else f'Warning: Could not kill existing browser processes: {e}'}{Style.RESET_ALL}")
 
     def _get_user_data_directory(self):
-        """Get the appropriate user data directory based on platform"""
+        """
+        获取浏览器用户数据目录
+        
+        根据不同操作系统，查找Chrome或Chromium的用户数据目录。
+        支持Windows、macOS和Linux系统，会依次尝试多个可能的路径。
+        
+        返回值:
+            str: 找到的用户数据目录路径，如果未找到则返回None
+        """
         try:
             if os.name == 'nt':  # Windows
                 possible_paths = [
@@ -210,7 +281,15 @@ class OAuthHandler:
             raise
 
     def _get_browser_path(self):
-        """Get the browser executable path based on platform"""
+        """
+        获取浏览器可执行文件路径
+        
+        根据操作系统尝试查找Chrome或Chromium浏览器的可执行文件路径。
+        首先尝试使用默认路径，如果失败则会搜索多个常见安装位置。
+        
+        返回值:
+            str: 找到的浏览器可执行文件路径，如果未找到则返回None
+        """
         try:
             # Try default path first
             chrome_path = get_default_chrome_path()
@@ -259,7 +338,22 @@ class OAuthHandler:
             return None
 
     def _configure_browser_options(self, chrome_path, user_data_dir, active_profile):
-        """Configure browser options based on platform"""
+        """
+        配置浏览器选项
+        
+        根据操作系统和用户配置文件设置浏览器启动参数，包括基本选项和平台特定选项。
+        
+        参数:
+            chrome_path (str): 浏览器可执行文件路径
+            user_data_dir (str): 用户数据目录路径
+            active_profile (str): 活动的用户配置文件名称
+            
+        返回值:
+            ChromiumOptions: 配置好的浏览器选项对象
+            
+        异常:
+            Exception: 配置浏览器选项时出错
+        """
         try:
             co = ChromiumOptions()
             co.set_paths(browser_path=chrome_path, user_data_path=user_data_dir)
@@ -288,7 +382,16 @@ class OAuthHandler:
             raise
 
     def handle_google_auth(self):
-        """Handle Google OAuth authentication"""
+        """
+        处理Google OAuth身份验证
+        
+        设置浏览器环境并导航到Cursor认证页面，寻找并点击Google认证按钮，
+        然后等待用户完成Google账号登录过程。成功后提取认证信息（令牌和邮箱）。
+        
+        返回值:
+            tuple: (成功状态(bool), 认证信息(dict或None))
+            认证信息字典包含email和token
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('oauth.google_start') if self.translator else 'Starting Google OAuth authentication...'}{Style.RESET_ALL}")
             
@@ -362,7 +465,18 @@ class OAuthHandler:
             return False, None
 
     def _wait_for_auth(self):
-        """Wait for authentication to complete and extract auth info"""
+        """
+        等待身份验证完成并提取认证信息
+        
+        监控浏览器会话，等待用户完成身份验证过程，然后提取认证令牌和用户邮箱等信息。
+        如果用户帐户已达到使用限制，还会尝试删除当前帐户并启动新的认证过程。
+        
+        返回值:
+            dict: 包含email和token的字典，如果认证失败则返回None
+            
+        异常:
+            Exception: 等待认证过程中出错
+        """
         try:
             max_wait = 300  # 5 minutes
             start_time = time.time()
@@ -453,7 +567,16 @@ class OAuthHandler:
             return None
         
     def handle_github_auth(self):
-        """Handle GitHub OAuth authentication"""
+        """
+        处理GitHub OAuth身份验证
+        
+        设置浏览器环境并导航到Cursor认证页面，寻找并点击GitHub认证按钮，
+        然后等待用户完成GitHub账号登录过程。成功后提取认证信息（令牌和邮箱）。
+        
+        返回值:
+            tuple: (成功状态(bool), 认证信息(dict或None))
+            认证信息字典包含email和token
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('oauth.github_start')}{Style.RESET_ALL}")
             
@@ -516,10 +639,19 @@ class OAuthHandler:
             return False, None
         
     def _handle_oauth(self, auth_type):
-        """Handle OAuth authentication for both Google and GitHub
+        """
+        处理OAuth身份验证过程（Google和GitHub通用）
         
-        Args:
-            auth_type (str): Type of authentication ('google' or 'github')
+        设置浏览器环境，访问认证页面，选择适当的认证按钮，
+        并等待用户完成身份验证流程。根据用户选择的认证类型
+        （Google或GitHub）提供相应的界面和提示。
+        
+        参数:
+            auth_type (str): 认证类型 ('google' 或 'github')
+            
+        返回值:
+            tuple: (成功状态(bool), 认证信息(dict或None))
+            认证信息字典包含email和token
         """
         try:
             if not self.setup_browser():
@@ -733,7 +865,16 @@ class OAuthHandler:
                 self.browser.quit()
 
     def _extract_auth_info(self):
-        """Extract authentication information after successful OAuth"""
+        """
+        提取身份验证成功后的认证信息
+        
+        从浏览器的Cookie中提取Cursor认证令牌和用户邮箱信息。
+        会尝试多次获取Cookie，以确保认证信息被正确捕获。
+        
+        返回值:
+            tuple: (成功状态(bool), 认证信息(dict或None))
+            认证信息字典包含email和token
+        """
         try:
             # Get cookies with retry
             max_retries = 3
@@ -785,7 +926,15 @@ class OAuthHandler:
             return False, None
 
     def _delete_current_account(self):
-        """Delete the current account using the API"""
+        """
+        删除当前Cursor账户
+        
+        使用Cursor API通过JavaScript执行删除账户操作。
+        成功删除后会重定向回认证页面，以便进行新的认证流程。
+        
+        返回值:
+            bool: 账户删除操作是否成功
+        """
         try:
             delete_js = """
             function deleteAccount() {
@@ -827,11 +976,18 @@ class OAuthHandler:
             return False
 
 def main(auth_type, translator=None):
-    """Main function to handle OAuth authentication
+    """
+    OAuth认证主函数
     
-    Args:
-        auth_type (str): Type of authentication ('google' or 'github')
-        translator: Translator instance for internationalization
+    根据指定的认证类型创建OAuth处理程序，执行认证流程，
+    并在成功后更新Cursor的认证信息。
+    
+    参数:
+        auth_type (str): 认证类型 ('google' 或 'github')
+        translator: 用于国际化的翻译器实例
+        
+    返回值:
+        bool: 认证过程是否成功
     """
     handler = OAuthHandler(translator, auth_type)
     

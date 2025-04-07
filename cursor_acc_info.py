@@ -1,3 +1,14 @@
+"""
+cursor_acc_info.py - Cursor账号信息查询模块
+
+这个模块负责获取和显示Cursor账号的信息，主要功能包括：
+- 从各种位置获取账号令牌(token)
+- 查询账号使用情况和订阅状态
+- 显示账号的详细信息（GPT-4使用量、订阅类型等）
+- 支持多语言显示
+
+通过此模块可以验证账号是否已成功激活Pro版本，并查看使用额度。
+"""
 import os
 import sys
 import json
@@ -31,7 +42,11 @@ EMOJI = {
 }
 
 class Config:
-    """Config"""
+    """
+    配置类
+    
+    存储程序中使用的常量和配置信息，如API请求头信息等。
+    """
     NAME_LOWER = "cursor"
     NAME_CAPITALIZE = "Cursor"
     BASE_HEADERS = {
@@ -41,11 +56,23 @@ class Config:
     }
 
 class UsageManager:
-    """Usage Manager"""
+    """
+    使用量管理类
+    
+    负责通过API获取账号的使用情况和订阅信息。
+    包含与Cursor服务器通信的各种方法。
+    """
     
     @staticmethod
     def get_proxy():
-        """get proxy"""
+        """
+        获取代理设置
+        
+        从环境变量中读取HTTP/HTTPS代理设置，如果存在则返回代理配置。
+        
+        返回值:
+            dict: 代理配置字典，如果没有配置则返回None
+        """
         # from config import get_config
         proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
         if proxy:
@@ -54,7 +81,25 @@ class UsageManager:
     
     @staticmethod
     def get_usage(token: str) -> Optional[Dict]:
-        """get usage"""
+        """
+        获取账号使用情况
+        
+        通过API获取账号的GPT-4和GPT-3.5使用数据，包括使用量和限制。
+        
+        参数:
+            token (str): 账号访问令牌
+            
+        返回值:
+            dict: 包含使用情况的字典，如果请求失败则返回None
+            
+        字典格式:
+            {
+                'premium_usage': GPT-4使用次数,
+                'max_premium_usage': GPT-4最大使用限制,
+                'basic_usage': GPT-3.5使用次数,
+                'max_basic_usage': "No Limit" (GPT-3.5无限制)
+            }
+        """
         url = f"https://www.{Config.NAME_LOWER}.com/api/usage"
         headers = Config.BASE_HEADERS.copy()
         headers.update({"Cookie": f"Workos{Config.NAME_CAPITALIZE}SessionToken=user_01OOOOOOOOOOOOOOOOOOOOOOOO%3A%3A{token}"})
@@ -90,7 +135,17 @@ class UsageManager:
 
     @staticmethod
     def get_stripe_profile(token: str) -> Optional[Dict]:
-        """get user subscription info"""
+        """
+        获取用户订阅信息
+        
+        通过API获取账号的Stripe订阅信息，包括订阅状态、类型等。
+        
+        参数:
+            token (str): 账号访问令牌
+            
+        返回值:
+            dict: 包含订阅信息的字典，如果请求失败则返回None
+        """
         url = f"https://api2.{Config.NAME_LOWER}.sh/auth/full_stripe_profile"
         headers = Config.BASE_HEADERS.copy()
         headers.update({"Authorization": f"Bearer {token}"})
@@ -104,7 +159,21 @@ class UsageManager:
             return None
 
 def get_token_from_config():
-    """get path info from config"""
+    """
+    从配置中获取路径信息
+    
+    读取程序配置，获取不同操作系统下的存储路径信息。
+    
+    返回值:
+        dict: 包含各种路径的字典，如果获取失败则返回None
+        
+    字典格式:
+        {
+            'storage_path': 存储JSON文件路径,
+            'sqlite_path': SQLite数据库路径,
+            'session_path': 会话存储路径
+        }
+    """
     try:
         from config import get_config
         config = get_config()
@@ -136,105 +205,230 @@ def get_token_from_config():
     return None
 
 def get_token_from_storage(storage_path):
-    """get token from storage.json"""
-    if not os.path.exists(storage_path):
-        return None
-        
-    try:
-        with open(storage_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            # try to get accessToken
-            if 'cursorAuth/accessToken' in data:
-                return data['cursorAuth/accessToken']
-            
-            # try other possible keys
-            for key in data:
-                if 'token' in key.lower() and isinstance(data[key], str) and len(data[key]) > 20:
-                    return data[key]
-    except Exception as e:
-        logger.error(f"get token from storage.json failed: {str(e)}")
+    """
+    从存储文件中获取令牌
     
+    从指定路径的JSON存储文件中读取访问令牌。
+    
+    参数:
+        storage_path (str): 存储文件的路径
+        
+    返回值:
+        str: 访问令牌，如果无法获取则返回None
+    """
+    try:
+        if os.path.exists(storage_path):
+            with open(storage_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                token = data.get("cursorAuth/accessToken")
+                if token:
+                    return token
+    except (json.JSONDecodeError, IOError) as e:
+        logger.error(f"Failed to read token from storage: {str(e)}")
     return None
 
 def get_token_from_sqlite(sqlite_path):
-    """get token from sqlite"""
-    if not os.path.exists(sqlite_path):
-        return None
-        
-    try:
-        conn = sqlite3.connect(sqlite_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM ItemTable WHERE key LIKE '%token%'")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        for row in rows:
-            try:
-                value = row[0]
-                if isinstance(value, str) and len(value) > 20:
-                    return value
-                # try to parse JSON
-                data = json.loads(value)
-                if isinstance(data, dict) and 'token' in data:
-                    return data['token']
-            except:
-                continue
-    except Exception as e:
-        logger.error(f"get token from sqlite failed: {str(e)}")
+    """
+    从SQLite数据库中获取令牌
     
+    连接SQLite数据库并查询访问令牌。
+    
+    参数:
+        sqlite_path (str): SQLite数据库文件的路径
+        
+    返回值:
+        str: 访问令牌，如果无法获取则返回None
+    """
+    try:
+        if os.path.exists(sqlite_path):
+            conn = sqlite3.connect(sqlite_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'")
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result and result[0]:
+                return result[0]
+    except sqlite3.Error as e:
+        logger.error(f"Failed to read token from SQLite: {str(e)}")
     return None
 
 def get_token_from_session(session_path):
-    """get token from session"""
-    if not os.path.exists(session_path):
-        return None
-        
-    try:
-        # try to find all possible session files
-        for file in os.listdir(session_path):
-            if file.endswith('.log'):
-                file_path = os.path.join(session_path, file)
-                try:
-                    with open(file_path, 'rb') as f:
-                        content = f.read().decode('utf-8', errors='ignore')
-                        # find token pattern
-                        token_match = re.search(r'"token":"([^"]+)"', content)
-                        if token_match:
-                            return token_match.group(1)
-                except:
-                    continue
-    except Exception as e:
-        logger.error(f"get token from session failed: {str(e)}")
+    """
+    从会话存储中获取令牌
     
+    从Cursor的会话存储文件中提取访问令牌。
+    这个方法处理LevelDB/Session Storage格式的文件。
+    
+    参数:
+        session_path (str): 会话存储文件夹的路径
+        
+    返回值:
+        str: 访问令牌，如果无法获取则返回None
+    """
+    try:
+        if os.path.exists(session_path):
+            for file in os.listdir(session_path):
+                if file.endswith(".log") or file.endswith(".ldb"):
+                    file_path = os.path.join(session_path, file)
+                    try:
+                        with open(file_path, "rb") as f:
+                            content = f.read().decode("utf-8", errors="ignore")
+                            # Search for token in file content
+                            match = re.search(r'"cursorAuth/accessToken"\s*:\s*"([^"]+)"', content)
+                            if match:
+                                return match.group(1)
+                    except IOError:
+                        continue
+    except Exception as e:
+        logger.error(f"Failed to read token from session storage: {str(e)}")
     return None
 
 def get_token():
-    """get Cursor token"""
-    # get path from config
-    paths = get_token_from_config()
-    if not paths:
-        return None
+    """
+    获取访问令牌
     
-    # try to get token from different locations
-    token = get_token_from_storage(paths['storage_path'])
-    if token:
-        return token
-        
-    token = get_token_from_sqlite(paths['sqlite_path'])
-    if token:
-        return token
-        
-    token = get_token_from_session(paths['session_path'])
-    if token:
-        return token
+    尝试从多个来源获取访问令牌，按优先级顺序：
+    1. 配置文件
+    2. 存储文件
+    3. SQLite数据库
+    4. 会话存储
+    
+    返回值:
+        str: 访问令牌，如果所有来源都失败则返回None
+    """
+    # First try to get paths from config
+    config_paths = get_token_from_config()
+    
+    if config_paths:
+        # Try to get token from storage
+        token = get_token_from_storage(config_paths.get('storage_path'))
+        if token:
+            return token
+            
+        # Try to get token from SQLite
+        token = get_token_from_sqlite(config_paths.get('sqlite_path'))
+        if token:
+            return token
+            
+        # Try to get token from session
+        token = get_token_from_session(config_paths.get('session_path'))
+        if token:
+            return token
     
     return None
 
 def format_subscription_type(subscription_data: Dict) -> str:
-    """format subscription type"""
-    if not subscription_data:
-        return "Free"
+    """
+    格式化订阅类型信息
     
+    根据订阅数据格式化为可读的订阅类型和状态。
+    
+    参数:
+        subscription_data (Dict): 包含订阅信息的字典
+        
+    返回值:
+        str: 格式化后的订阅类型字符串
+        
+    支持的订阅类型:
+    - Pro: 专业版
+    - Pro (Trial): 专业版试用
+    - Team: 团队版
+    - Basic: 基础版
+    - Not Found: 未发现订阅信息
+    """
+    try:
+        # If has subscription
+        if subscription_data and 'stripeSubStatusText' in subscription_data:
+            # Check if has a pro plan
+            if subscription_data.get('hasPro', False):
+                # Check if has a Team plan (larger than Pro)
+                if subscription_data.get('hasTeams', False) or subscription_data.get('hasTeam', False):
+                    # return "Team" plan
+                    return f"{Fore.CYAN}Team{Style.RESET_ALL}"
+                    
+                # Not team, just Pro
+                if 'trialPeriodDays' in subscription_data and subscription_data.get('trialPeriodDays') > 0:
+                    # Just a trial
+                    return f"{Fore.YELLOW}Pro (Trial){Style.RESET_ALL}"
+                # Regular Pro account
+                return f"{Fore.GREEN}Pro{Style.RESET_ALL}"
+            
+            # Falls back to basic
+            return f"{Fore.WHITE}Basic{Style.RESET_ALL}"
+        
+        return f"{Fore.RED}Not Found{Style.RESET_ALL}"
+    except Exception:
+        return f"{Fore.RED}Error{Style.RESET_ALL}"
+
+def get_email_from_storage(storage_path):
+    """
+    从存储文件中获取邮箱地址
+    
+    从指定路径的JSON存储文件中读取用户邮箱地址。
+    
+    参数:
+        storage_path (str): 存储文件的路径
+        
+    返回值:
+        str: 用户邮箱地址，如果无法获取则返回None
+    """
+    try:
+        if os.path.exists(storage_path):
+            with open(storage_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                email = data.get("cursorAuth/cachedEmail")
+                if email:
+                    return email
+    except (json.JSONDecodeError, IOError) as e:
+        logger.error(f"Failed to read email from storage: {str(e)}")
+    return None
+
+def get_email_from_sqlite(sqlite_path):
+    """
+    从SQLite数据库中获取邮箱地址
+    
+    连接SQLite数据库并查询用户邮箱地址。
+    
+    参数:
+        sqlite_path (str): SQLite数据库文件的路径
+        
+    返回值:
+        str: 用户邮箱地址，如果无法获取则返回None
+    """
+    try:
+        if os.path.exists(sqlite_path):
+            conn = sqlite3.connect(sqlite_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM ItemTable WHERE key = 'cursorAuth/cachedEmail'")
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result and result[0]:
+                return result[0]
+    except sqlite3.Error as e:
+        logger.error(f"Failed to read email from SQLite: {str(e)}")
+    return None
+
+def display_account_info(translator=None):
+    """
+    显示账号信息
+    
+    获取并显示Cursor账号的详细信息，包括:
+    - 邮箱地址
+    - 订阅类型和状态
+    - GPT-4和GPT-3.5使用情况
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 操作成功返回True，失败返回False
+    """
+    # Get token
+    token = get_token()
+    if not token:
+        print(f"\n{Fore.RED}{EMOJI['ERROR']} {translator.get('acc_info.token_not_found') if translator else 'Token not found. Make sure Cursor is installed and you have logged in.'}{Style.RESET_ALL}")
     # handle new API response format
     if "membershipType" in subscription_data:
         membership_type = subscription_data.get("membershipType", "").lower()
@@ -283,17 +477,27 @@ def format_subscription_type(subscription_data: Dict) -> str:
     return "Free"
 
 def get_email_from_storage(storage_path):
-    """get email from storage.json"""
+    """
+    从storage.json文件获取邮箱
+    
+    尝试从Cursor的存储文件中提取用户邮箱地址。
+    
+    参数:
+        storage_path (str): storage.json文件的路径
+        
+    返回值:
+        str: 找到的邮箱地址，如果未找到则返回None
+    """
     if not os.path.exists(storage_path):
         return None
         
     try:
         with open(storage_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            # try to get email
+            # try to get cursorAuth/cachedEmail
             if 'cursorAuth/cachedEmail' in data:
                 return data['cursorAuth/cachedEmail']
-            
+                
             # try other possible keys
             for key in data:
                 if 'email' in key.lower() and isinstance(data[key], str) and '@' in data[key]:
@@ -304,37 +508,38 @@ def get_email_from_storage(storage_path):
     return None
 
 def get_email_from_sqlite(sqlite_path):
-    """get email from sqlite"""
+    """
+    从SQLite数据库获取邮箱
+    
+    连接Cursor的SQLite数据库，尝试从中提取用户邮箱地址。
+    
+    参数:
+        sqlite_path (str): SQLite数据库文件的路径
+        
+    返回值:
+        str: 找到的邮箱地址，如果未找到则返回None
+    """
     if not os.path.exists(sqlite_path):
         return None
         
     try:
         conn = sqlite3.connect(sqlite_path)
         cursor = conn.cursor()
-        # try to query records containing email
-        cursor.execute("SELECT value FROM ItemTable WHERE key LIKE '%email%' OR key LIKE '%cursorAuth%'")
+        cursor.execute("SELECT value FROM ItemTable WHERE key LIKE '%email%'")
         rows = cursor.fetchall()
         conn.close()
         
         for row in rows:
             try:
                 value = row[0]
-                # if it's a string and contains @, it might be an email
-                if isinstance(value, str) and '@' in value:
+                if isinstance(value, str) and '@' in value and '.' in value.split('@')[1]:
                     return value
-                
                 # try to parse JSON
-                try:
-                    data = json.loads(value)
-                    if isinstance(data, dict):
-                        # check if there's an email field
-                        if 'email' in data:
-                            return data['email']
-                        # check if there's a cachedEmail field
-                        if 'cachedEmail' in data:
-                            return data['cachedEmail']
-                except:
-                    pass
+                data = json.loads(value)
+                if isinstance(data, dict) and 'email' in data:
+                    email = data['email']
+                    if '@' in email and '.' in email.split('@')[1]:
+                        return email
             except:
                 continue
     except Exception as e:
@@ -343,210 +548,167 @@ def get_email_from_sqlite(sqlite_path):
     return None
 
 def display_account_info(translator=None):
-    """display account info"""
-    print(f"\n{Fore.CYAN}{'─' * 70}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{EMOJI['USER']} {translator.get('account_info.title') if translator else 'Cursor Account Information'}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{'─' * 70}{Style.RESET_ALL}")
+    """
+    显示账号信息
     
-    # get token
-    token = get_token()
-    if not token:
-        print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('account_info.token_not_found') if translator else 'Token not found. Please login to Cursor first.'}{Style.RESET_ALL}")
-        return
+    获取并格式化显示Cursor账号的详细信息，包括：
+    - 邮箱地址
+    - 订阅类型
+    - GPT-4使用量和限制
+    - GPT-3.5使用量
+    - 订阅状态和剩余天数（如果适用）
     
-    # get path info
-    paths = get_token_from_config()
-    if not paths:
-        print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('account_info.config_not_found') if translator else 'Configuration not found.'}{Style.RESET_ALL}")
-        return
-    
-    # get email info - try multiple sources
-    email = get_email_from_storage(paths['storage_path'])
-    
-    # if not found in storage, try from sqlite
-    if not email:
-        email = get_email_from_sqlite(paths['sqlite_path'])
-    
-    # get subscription info
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 如果成功获取并显示信息返回True，否则返回False
+    """
     try:
-        subscription_info = UsageManager.get_stripe_profile(token)
-    except Exception as e:
-        logger.error(f"Get subscription info failed: {str(e)}")
-        subscription_info = None
-    
-    # if not found in storage and sqlite, try from subscription info
-    if not email and subscription_info:
-        # try to get email from subscription info
-        if 'customer' in subscription_info and 'email' in subscription_info['customer']:
-            email = subscription_info['customer']['email']
-    
-    # get usage info - silently handle errors
-    try:
+        # Get token
+        token = get_token()
+        if not token:
+            print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('account_info.token_not_found') if translator else 'Failed to get Cursor token'}{Style.RESET_ALL}")
+            return False
+            
+        # Get paths
+        paths = get_token_from_config()
+        if not paths:
+            print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('account_info.config_path_failed') if translator else 'Failed to get paths from config'}{Style.RESET_ALL}")
+            return False
+            
+        # Get email
+        email = get_email_from_storage(paths['storage_path']) or get_email_from_sqlite(paths['sqlite_path']) or "Unknown"
+            
+        # Get usage info
         usage_info = UsageManager.get_usage(token)
-    except Exception as e:
-        logger.error(f"Get usage info failed: {str(e)}")
-        usage_info = None
-    
-    # Prepare left and right info
-    left_info = []
-    right_info = []
-    
-    # Left side shows account info
-    if email:
-        left_info.append(f"{Fore.GREEN}{EMOJI['USER']} {translator.get('account_info.email') if translator else 'Email'}: {Fore.WHITE}{email}{Style.RESET_ALL}")
-    else:
-        left_info.append(f"{Fore.YELLOW}{EMOJI['WARNING']} {translator.get('account_info.email_not_found') if translator else 'Email not found'}{Style.RESET_ALL}")
-    
-    # Add an empty line
-    # left_info.append("")
-    
-    # Show subscription type
-    if subscription_info:
+        premium_usage = "Unknown"
+        max_premium_usage = "Unknown"
+        basic_usage = "Unknown"
+        
+        if usage_info:
+            premium_usage = usage_info.get('premium_usage', "Unknown")
+            max_premium_usage = usage_info.get('max_premium_usage', "Unknown")
+            basic_usage = usage_info.get('basic_usage', "Unknown")
+            
+        # Get subscription info
+        subscription_info = UsageManager.get_stripe_profile(token)
         subscription_type = format_subscription_type(subscription_info)
-        left_info.append(f"{Fore.GREEN}{EMOJI['SUBSCRIPTION']} {translator.get('account_info.subscription') if translator else 'Subscription'}: {Fore.WHITE}{subscription_type}{Style.RESET_ALL}")
         
-        # Show remaining trial days
-        days_remaining = subscription_info.get("daysRemainingOnTrial")
-        if days_remaining is not None and days_remaining > 0:
-            left_info.append(f"{Fore.GREEN}{EMOJI['TIME']} {translator.get('account_info.trial_remaining') if translator else 'Remaining Pro Trial'}: {Fore.WHITE}{days_remaining} {translator.get('account_info.days') if translator else 'days'}{Style.RESET_ALL}")
-    else:
-        left_info.append(f"{Fore.YELLOW}{EMOJI['WARNING']} {translator.get('account_info.subscription_not_found') if translator else 'Subscription information not found'}{Style.RESET_ALL}")
-    
-    # Right side shows usage info - only if available
-    if usage_info:
-        right_info.append(f"{Fore.GREEN}{EMOJI['USAGE']} {translator.get('account_info.usage') if translator else 'Usage Statistics'}:{Style.RESET_ALL}")
+        # Calculate subscription end date and remaining days
+        subscription_end_date = "N/A"
+        remaining_days = "N/A"
         
-        # Premium usage
-        premium_usage = usage_info.get('premium_usage', 0)
-        max_premium_usage = usage_info.get('max_premium_usage', "No Limit")
+        # Only process if we have subscription info
+        if subscription_info:
+            # Check if trial or paid subscription
+            if "trialEndDate" in subscription_info and subscription_info["trialEndDate"]:
+                end_timestamp = subscription_info["trialEndDate"] / 1000  # convert ms to s
+                import datetime
+                end_date = datetime.datetime.fromtimestamp(end_timestamp)
+                subscription_end_date = end_date.strftime("%Y-%m-%d")
+                
+                # Calculate remaining days
+                now = datetime.datetime.now()
+                delta = end_date - now
+                remaining_days = max(0, delta.days)
+                
+            # Check if paid subscription
+            elif "subscriptionEndDate" in subscription_info and subscription_info["subscriptionEndDate"]:
+                end_timestamp = subscription_info["subscriptionEndDate"] / 1000  # convert ms to s
+                import datetime
+                end_date = datetime.datetime.fromtimestamp(end_timestamp)
+                subscription_end_date = end_date.strftime("%Y-%m-%d")
+                
+                # Calculate remaining days
+                now = datetime.datetime.now()
+                delta = end_date - now
+                remaining_days = max(0, delta.days)
         
-        #  make sure the value is not None
-        if premium_usage is None:
-            premium_usage = 0
+        # Print account info
+        print(f"\n{Fore.CYAN}{'─' * 60}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{EMOJI['INFO']} {translator.get('account_info.account_info') if translator else 'Cursor Account Information'}:{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'─' * 60}{Style.RESET_ALL}")
         
-        # handle "No Limit" case
-        if isinstance(max_premium_usage, str) and max_premium_usage == "No Limit":
-            premium_color = Fore.GREEN  # when there is no limit, use green
-            premium_display = f"{premium_usage}/{max_premium_usage}"
-        else:
-            # calculate percentage when the value is a number
-            if max_premium_usage is None or max_premium_usage == 0:
-                max_premium_usage = 999
-                premium_percentage = 0
-            else:
-                premium_percentage = (premium_usage / max_premium_usage) * 100
+        # Email
+        print(f"{Fore.GREEN}{EMOJI['USER']} {translator.get('account_info.email') if translator else 'Email'}: {email}{Style.RESET_ALL}")
+        
+        # Subscription Type
+        subscription_color = Fore.GREEN if subscription_type != "Free" else Fore.YELLOW
+        print(f"{subscription_color}{EMOJI['SUBSCRIPTION']} {translator.get('account_info.subscription_type') if translator else 'Subscription Type'}: {subscription_type}{Style.RESET_ALL}")
+        
+        # Premium Usage
+        usage_percentage = "N/A"
+        premium_color = Fore.GREEN
+        
+        if isinstance(premium_usage, int) and isinstance(max_premium_usage, int) and max_premium_usage > 0:
+            usage_percentage = f"{(premium_usage / max_premium_usage) * 100:.1f}%"
             
-            # select color based on usage percentage
-            premium_color = Fore.GREEN
-            if premium_percentage > 70:
-                premium_color = Fore.YELLOW
-            if premium_percentage > 90:
+            # Change color based on usage percentage
+            if premium_usage / max_premium_usage > 0.8:
                 premium_color = Fore.RED
+            elif premium_usage / max_premium_usage > 0.5:
+                premium_color = Fore.YELLOW
+        
+        print(f"{premium_color}{EMOJI['PREMIUM']} {translator.get('account_info.premium_usage') if translator else 'Premium Usage (GPT-4)'}: {premium_usage} / {max_premium_usage} ({usage_percentage}){Style.RESET_ALL}")
+        
+        # Basic Usage
+        print(f"{Fore.GREEN}{EMOJI['BASIC']} {translator.get('account_info.basic_usage') if translator else 'Basic Usage (GPT-3.5)'}: {basic_usage} / {translator.get('account_info.no_limit') if translator else 'No Limit'}{Style.RESET_ALL}")
+        
+        # Subscription End Date
+        if subscription_end_date != "N/A":
+            end_date_color = Fore.RED if isinstance(remaining_days, int) and remaining_days < 7 else Fore.GREEN
+            print(f"{end_date_color}{EMOJI['TIME']} {translator.get('account_info.subscription_end') if translator else 'Subscription End Date'}: {subscription_end_date}{Style.RESET_ALL}")
             
-            premium_display = f"{premium_usage}/{max_premium_usage} ({premium_percentage:.1f}%)"
+            # Remaining Days
+            print(f"{end_date_color}{EMOJI['TIME']} {translator.get('account_info.remaining_days') if translator else 'Remaining Days'}: {remaining_days}{Style.RESET_ALL}")
         
-        right_info.append(f"{Fore.YELLOW}{EMOJI['PREMIUM']} {translator.get('account_info.premium_usage') if translator else 'Fast Response'}: {premium_color}{premium_display}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}{'─' * 60}{Style.RESET_ALL}")
         
-        # Slow Response
-        basic_usage = usage_info.get('basic_usage', 0)
-        max_basic_usage = usage_info.get('max_basic_usage', "No Limit")
-        
-        # make sure the value is not None
-        if basic_usage is None:
-            basic_usage = 0
-        
-        # handle "No Limit" case
-        if isinstance(max_basic_usage, str) and max_basic_usage == "No Limit":
-            basic_color = Fore.GREEN  # when there is no limit, use green
-            basic_display = f"{basic_usage}/{max_basic_usage}"
-        else:
-            # calculate percentage when the value is a number
-            if max_basic_usage is None or max_basic_usage == 0:
-                max_basic_usage = 999
-                basic_percentage = 0
-            else:
-                basic_percentage = (basic_usage / max_basic_usage) * 100
-            
-            # select color based on usage percentage
-            basic_color = Fore.GREEN
-            if basic_percentage > 70:
-                basic_color = Fore.YELLOW
-            if basic_percentage > 90:
-                basic_color = Fore.RED
-            
-            basic_display = f"{basic_usage}/{max_basic_usage} ({basic_percentage:.1f}%)"
-        
-        right_info.append(f"{Fore.BLUE}{EMOJI['BASIC']} {translator.get('account_info.basic_usage') if translator else 'Slow Response'}: {basic_color}{basic_display}{Style.RESET_ALL}")
-    else:
-        # if get usage info failed, only log in log, not show in interface
-        # you can choose to not show any usage info, or show a simple prompt
-        # right_info.append(f"{Fore.YELLOW}{EMOJI['INFO']} {translator.get('account_info.usage_unavailable') if translator else 'Usage information unavailable'}{Style.RESET_ALL}")
-        pass  # not show any usage info
+        return True
     
-    # Calculate the maximum display width of left info
-    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-    
+    except Exception as e:
+        print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('account_info.error', error=str(e)) if translator else f'Error: {str(e)}'}{Style.RESET_ALL}")
+        logger.error(f"display_account_info failed: {str(e)}")
+        return False
+        
     def get_display_width(s):
-        """Calculate the display width of a string, considering Chinese characters and emojis"""
-        # Remove ANSI color codes
-        clean_s = ansi_escape.sub('', s)
+        """
+        获取字符串的显示宽度
+        
+        计算字符串在终端中的实际显示宽度，
+        中文字符通常占用两个单位宽度。
+        
+        参数:
+            s (str): 要计算宽度的字符串
+            
+        返回值:
+            int: 字符串的显示宽度
+        """
+        if not s:
+            return 0
+            
         width = 0
-        for c in clean_s:
-            # Chinese characters and some emojis occupy two character widths
-            if ord(c) > 127:
+        for c in s:
+            if ord(c) > 127:  # Unicode characters (for CJK languages)
                 width += 2
             else:
                 width += 1
         return width
-    
-    max_left_width = 0
-    for item in left_info:
-        width = get_display_width(item)
-        max_left_width = max(max_left_width, width)
-    
-    # Set the starting position of right info
-    fixed_spacing = 4  # Fixed spacing
-    right_start = max_left_width + fixed_spacing
-    
-    # Calculate the number of spaces needed for right info
-    spaces_list = []
-    for i in range(len(left_info)):
-        if i < len(left_info):
-            left_item = left_info[i]
-            left_width = get_display_width(left_item)
-            spaces = right_start - left_width
-            spaces_list.append(spaces)
-    
-    # Print info
-    max_rows = max(len(left_info), len(right_info))
-    
-    for i in range(max_rows):
-        # Print left info
-        if i < len(left_info):
-            left_item = left_info[i]
-            print(left_item, end='')
-            
-            # Use pre-calculated spaces
-            spaces = spaces_list[i]
-        else:
-            # If left side has no items, print only spaces
-            spaces = right_start
-            print('', end='')
-        
-        # Print right info
-        if i < len(right_info):
-            print(' ' * spaces + right_info[i])
-        else:
-            print()  # Change line
-    
-    print(f"{Fore.CYAN}{'─' * 70}{Style.RESET_ALL}")
 
 def main(translator=None):
-    """main function"""
-    try:
-        display_account_info(translator)
-    except Exception as e:
-        print(f"{Fore.RED}{EMOJI['ERROR']} {translator.get('account_info.error') if translator else 'Error'}: {str(e)}{Style.RESET_ALL}")
+    """
+    主函数
+    
+    程序的入口点，调用display_account_info函数显示账号信息。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 如果成功获取并显示信息返回True，否则返回False
+    """
+    return display_account_info(translator)
 
 if __name__ == "__main__":
     main() 

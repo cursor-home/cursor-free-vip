@@ -1,3 +1,21 @@
+"""
+GitHub Cursor 注册工具
+
+该模块提供了一个自动化的流程，用于通过GitHub OAuth认证注册Cursor账号。
+该工具会自动完成以下步骤：
+1. 创建临时邮箱
+2. 注册新的GitHub账号
+3. 验证GitHub邮箱
+4. 使用GitHub账号注册登录Cursor
+5. 重置机器ID（避免使用限制）
+6. 保存认证信息
+
+使用方法：
+    python github_cursor_register.py
+
+注意: 该过程可能需要人工干预来完成验证码验证。
+"""
+
 import os
 import time
 import uuid
@@ -46,7 +64,28 @@ EMOJI = {
 }
 
 class GitHubCursorRegistration:
+    """
+    GitHub Cursor注册类
+    
+    该类提供了一系列方法，用于自动化完成GitHub账号创建和Cursor注册过程。
+    包括临时邮箱创建、GitHub账号注册、邮箱验证、Cursor账号注册和机器ID重置等功能。
+    
+    属性:
+        translator: 国际化翻译器实例
+        browser: 浏览器WebDriver实例
+        email_address: 临时邮箱地址
+        github_username: 随机生成的GitHub用户名
+        github_password: 随机生成的GitHub密码
+    """
     def __init__(self, translator=None):
+        """
+        初始化GitHub Cursor注册类
+        
+        设置基本属性并生成随机的GitHub账号凭据。
+        
+        参数:
+            translator: 可选的翻译器实例，用于国际化
+        """
         self.translator = translator
         # Set browser to visible mode
         os.environ['BROWSER_HEADLESS'] = 'False'
@@ -58,9 +97,16 @@ class GitHubCursorRegistration:
         self.github_password = ''.join(random.choices(string.ascii_letters + string.digits + string.punctuation, k=16))
     
     def setup_browser(self):
-        """Setup and configure the web browser"""
+        """
+        设置和配置Web浏览器
+        
+        初始化Chrome浏览器实例，配置必要的选项，如无痕模式、窗口大小和用户代理等。
+        
+        返回值:
+            bool: 浏览器设置是否成功
+        """
         try:
-            print(f"{Fore.CYAN}{EMOJI['START']} Setting up browser...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('github.setup_browser') if self.translator else '正在设置浏览器...'}{Style.RESET_ALL}")
             
             options = Options()
             options.add_argument('--incognito')
@@ -74,17 +120,24 @@ class GitHubCursorRegistration:
             self.browser.set_page_load_timeout(30)
             return True
         except Exception as e:
-            print(f"{Fore.RED}{EMOJI['ERROR']} Failed to setup browser: {str(e)}{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.browser_setup_failed', error=str(e)) if self.translator else f'浏览器设置失败: {str(e)}'}{Style.RESET_ALL}")
             return False
     
     def get_temp_email(self):
-        """Get a temporary email address using YOPmail"""
+        """
+        获取临时邮箱地址
+        
+        使用YOPmail服务创建一个临时邮箱，生成一个看起来真实的用户名（firstname.lastname+number）。
+        
+        返回值:
+            bool: 临时邮箱创建是否成功
+        """
         try:
             if not self.browser:
                 if not self.setup_browser():
                     return False
             
-            print(f"{Fore.CYAN}{EMOJI['MAIL']} Generating temporary email address...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{EMOJI['MAIL']} {self.translator.get('github.generating_temp_email') if self.translator else '正在生成临时邮箱地址...'}{Style.RESET_ALL}")
             self.browser.get("https://yopmail.com/")
             time.sleep(2)
             
@@ -111,20 +164,28 @@ class GitHubCursorRegistration:
                     check_button.click()
                     time.sleep(2)
                     self.email_address = f"{username}@yopmail.com"
-                    print(f"{Fore.GREEN}{EMOJI['SUCCESS']} Temp email created: {self.email_address}{Style.RESET_ALL}")
+                    print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('github.temp_email_created', email=self.email_address) if self.translator else f'临时邮箱创建成功: {self.email_address}'}{Style.RESET_ALL}")
                     return True
             
-            print(f"{Fore.RED}{EMOJI['ERROR']} Failed to create YOPmail address{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.temp_email_failed') if self.translator else '创建YOPmail地址失败'}{Style.RESET_ALL}")
             return False
             
         except Exception as e:
-            print(f"{Fore.RED}{EMOJI['ERROR']} Error getting temporary email: {str(e)}{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.temp_email_error', error=str(e)) if self.translator else f'获取临时邮箱时出错: {str(e)}'}{Style.RESET_ALL}")
             return False
     
     def register_github(self):
-        """Register a new GitHub account"""
+        """
+        注册新的GitHub账号
+        
+        使用临时邮箱地址和随机生成的用户名、密码注册GitHub账号。
+        自动填写注册表单并处理可能出现的验证码。如有验证码，需要用户手动完成。
+        
+        返回值:
+            bool: GitHub账号注册是否成功
+        """
         if not self.email_address:
-            print(f"{Fore.RED}{EMOJI['ERROR']} No email address available{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.no_email') if self.translator else '没有可用的邮箱地址'}{Style.RESET_ALL}")
             return False
             
         if not self.browser:
@@ -132,7 +193,7 @@ class GitHubCursorRegistration:
                 return False
         
         try:
-            print(f"{Fore.CYAN}{EMOJI['FORM']} Registering GitHub account...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{EMOJI['FORM']} {self.translator.get('github.registering_account') if self.translator else '正在注册GitHub账号...'}{Style.RESET_ALL}")
             self.browser.get("https://github.com/join")
             time.sleep(3)
 
@@ -204,218 +265,222 @@ class GitHubCursorRegistration:
             return False
     
     def check_email_verification(self):
-        """Check for GitHub verification email and click the verification link"""
-        if not self.email_address or not self.browser:
-            print(f"{Fore.RED}{EMOJI['ERROR']} Email or browser not available{Style.RESET_ALL}")
-            return False
+        """
+        检查邮箱验证
+        
+        检查GitHub发送的验证邮件，并点击验证链接完成账号验证。
+        会打开YOPmail收件箱并刷新直到收到验证邮件，然后提取并访问验证链接。
+        
+        返回值:
+            bool: 邮箱验证是否成功
+        """
+        if not self.browser:
+            if not self.setup_browser():
+                return False
         
         try:
-            print(f"{Fore.CYAN}{EMOJI['EMAIL']} Checking for verification email...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{EMOJI['VERIFY']} {self.translator.get('github.checking_email_verification') if self.translator else '正在检查邮箱验证...'}{Style.RESET_ALL}")
             
-            # Extract username from email for YOPmail
-            username = self.email_address.split('@')[0]
+            # Go to YOPmail
+            self.browser.get("https://yopmail.com/")
+            time.sleep(2)
             
-            max_attempts = 10
-            for attempt in range(1, max_attempts + 1):
-                print(f"{Fore.CYAN}{EMOJI['REFRESH']} Checking YOPmail inbox (attempt {attempt}/{max_attempts})...{Style.RESET_ALL}")
+            # Enter the email address
+            email_field = self.browser.find_element(By.XPATH, "//input[@id='login']")
+            if email_field:
+                email_field.clear()
+                email_field.send_keys(self.email_address.split('@')[0])  # Just the username part
+                time.sleep(1)
                 
-                # Go to YOPmail inbox
-                self.browser.get(f"https://yopmail.com/en/wm")
-                time.sleep(2)
-                
-                # Enter email address
-                try:
-                    email_input = WebDriverWait(self.browser, 10).until(
-                        EC.presence_of_element_located((By.ID, "login"))
-                    )
-                    email_input.clear()
-                    email_input.send_keys(username)
-                    
-                    # Click the check inbox button
-                    check_button = self.browser.find_element(By.CSS_SELECTOR, "button[onclick='verif()']")
+                # Click the check button
+                check_button = self.browser.find_element(By.XPATH, "//button[@title='Check Inbox' or @class='sbut' or contains(@onclick, 'ver')]")
+                if check_button:
                     check_button.click()
+                    time.sleep(2)
+            
+            # Maximum number of refresh attempts
+            max_attempts = 15
+            current_attempt = 0
+            verification_link = None
+            
+            # Switch to the inbox iframe
+            while current_attempt < max_attempts and not verification_link:
+                current_attempt += 1
+                print(f"{Fore.CYAN}{EMOJI['REFRESH']} {self.translator.get('github.refreshing_inbox', attempt=current_attempt, max=max_attempts) if self.translator else f'刷新收件箱... ({current_attempt}/{max_attempts})'}{Style.RESET_ALL}")
+                
+                # Refresh the inbox
+                refresh_button = self.browser.find_element(By.XPATH, "//button[@id='refresh' or contains(@onclick, 'refresh') or contains(@title, 'Refresh')]")
+                if refresh_button:
+                    refresh_button.click()
                     time.sleep(3)
-                    
-                    # Switch to inbox frame
-                    iframe = WebDriverWait(self.browser, 10).until(
-                        EC.presence_of_element_located((By.ID, "ifinbox"))
-                    )
-                    self.browser.switch_to.frame(iframe)
-                    
+                
+                try:
                     # Look for GitHub email
-                    emails = self.browser.find_elements(By.CSS_SELECTOR, "div.m")
-                    github_email = None
+                    inbox_frame = self.browser.find_element(By.XPATH, "//iframe[@id='ifmail' or @name='ifmail']")
+                    self.browser.switch_to.frame(inbox_frame)
                     
-                    for email in emails:
-                        if "github" in email.text.lower():
-                            github_email = email
-                            break
+                    # Check if verification email exists
+                    github_emails = self.browser.find_elements(By.XPATH, "//div[contains(text(), 'GitHub') or contains(text(), 'github')]")
                     
-                    if github_email:
-                        print(f"{Fore.GREEN}{EMOJI['SUCCESS']} GitHub verification email found{Style.RESET_ALL}")
-                        github_email.click()
-                        time.sleep(2)
-                        
-                        # Switch back to default content
-                        self.browser.switch_to.default_content()
-                        
-                        # Switch to email content frame
-                        iframe = WebDriverWait(self.browser, 10).until(
-                            EC.presence_of_element_located((By.ID, "ifmail"))
-                        )
-                        self.browser.switch_to.frame(iframe)
+                    if github_emails:
+                        print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('github.verification_email_found') if self.translator else '找到GitHub验证邮件'}{Style.RESET_ALL}")
                         
                         # Find verification link
-                        try:
-                            # Look for the verification button or link
-                            verification_elements = self.browser.find_elements(By.XPATH, "//a[contains(text(), 'Verify') or contains(text(), 'verify') or contains(@href, 'verify')]")
-                            
-                            if verification_elements:
-                                verification_link = verification_elements[0].get_attribute('href')
-                                print(f"{Fore.CYAN}{EMOJI['LINK']} Found verification link{Style.RESET_ALL}")
-                                
-                                # Open the verification link in the same window
-                                self.browser.get(verification_link)
-                                time.sleep(5)
-                                
-                                # Check if verification was successful
-                                if "verified" in self.browser.page_source.lower() or "successful" in self.browser.page_source.lower():
-                                    print(f"{Fore.GREEN}{EMOJI['SUCCESS']} Email verified successfully{Style.RESET_ALL}")
-                                    return True
-                                else:
-                                    print(f"{Fore.YELLOW}{EMOJI['WARNING']} Email verification page loaded but success not confirmed{Style.RESET_ALL}")
-                                    print(f"{Fore.YELLOW}{EMOJI['INFO']} Please check if verification was successful manually and press Enter to continue...{Style.RESET_ALL}")
-                                    input()
-                                    return True
-                            else:
-                                print(f"{Fore.RED}{EMOJI['ERROR']} No verification link found in email{Style.RESET_ALL}")
-                        except Exception as e:
-                            print(f"{Fore.RED}{EMOJI['ERROR']} Error extracting verification link: {str(e)}{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.YELLOW}{EMOJI['WAIT']} No GitHub verification email yet, waiting... ({attempt}/{max_attempts}){Style.RESET_ALL}")
-                        time.sleep(15)  # Wait before checking again
+                        verify_links = self.browser.find_elements(By.XPATH, "//a[contains(@href, 'github.com/') and (contains(text(), 'Verify') or contains(text(), 'verify') or contains(text(), 'Confirm') or contains(text(), 'confirm'))]")
+                        
+                        if verify_links:
+                            verification_link = verify_links[0].get_attribute('href')
+                            print(f"{Fore.GREEN}{EMOJI['LINK']} {self.translator.get('github.verification_link_found') if self.translator else '找到验证链接'}{Style.RESET_ALL}")
+                            break
+                        else:
+                            print(f"{Fore.YELLOW}{EMOJI['WARNING']} {self.translator.get('github.verification_link_not_found') if self.translator else '未找到验证链接'}{Style.RESET_ALL}")
+                    
+                    # Switch back to main content
+                    self.browser.switch_to.default_content()
+                    
+                except Exception as frame_error:
+                    print(f"{Fore.YELLOW}{EMOJI['WARNING']} {self.translator.get('github.frame_switch_error', error=str(frame_error)) if self.translator else f'切换iframe时出错: {str(frame_error)}'}{Style.RESET_ALL}")
+                    self.browser.switch_to.default_content()
                 
-                except Exception as e:
-                    print(f"{Fore.RED}{EMOJI['ERROR']} Error checking email: {str(e)}{Style.RESET_ALL}")
+                time.sleep(5)  # Wait before next refresh
             
-            print(f"{Fore.RED}{EMOJI['ERROR']} No verification email received after {max_attempts} attempts{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}{EMOJI['INFO']} Do you want to check manually? (yes/no){Style.RESET_ALL}")
-            response = input().lower().strip()
-            if response in ['yes', 'y']:
-                print(f"{Fore.YELLOW}{EMOJI['INFO']} Please check your YOPmail inbox manually at: https://yopmail.com/en/wm")
-                print(f"{Fore.YELLOW}{EMOJI['INFO']} Username: {username}")
-                print(f"{Fore.YELLOW}{EMOJI['INFO']} Press Enter when you've verified the email...{Style.RESET_ALL}")
-                input()
-                return True
-            return False
+            # If verification link found, open it
+            if verification_link:
+                print(f"{Fore.CYAN}{EMOJI['LINK']} {self.translator.get('github.opening_verification_link') if self.translator else '正在打开验证链接...'}{Style.RESET_ALL}")
+                self.browser.get(verification_link)
+                time.sleep(5)
+                
+                # Check if verification was successful
+                if "github.com" in self.browser.current_url and not "/join" in self.browser.current_url:
+                    print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('github.email_verification_success') if self.translator else 'GitHub邮箱验证成功'}{Style.RESET_ALL}")
+                    return True
+                else:
+                    print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.email_verification_failed') if self.translator else 'GitHub邮箱验证失败'}{Style.RESET_ALL}")
+                    return False
+            else:
+                print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.verification_link_not_found_timeout') if self.translator else '超时未找到验证链接'}{Style.RESET_ALL}")
+                return False
             
         except Exception as e:
-            print(f"{Fore.RED}{EMOJI['ERROR']} Failed to check verification email: {str(e)}{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.email_verification_error', error=str(e)) if self.translator else f'邮箱验证过程中出错: {str(e)}'}{Style.RESET_ALL}")
             return False
-    
+
     def register_cursor(self):
-        """Register with Cursor using GitHub"""
+        """
+        注册Cursor账号
+        
+        使用已验证的GitHub账号通过OAuth授权注册Cursor账号。
+        访问Cursor注册页面，选择GitHub登录方式，并完成授权流程。
+        
+        返回值:
+            bool: Cursor注册是否成功
+        """
         if not self.browser:
             if not self.setup_browser():
                 return False
                 
         try:
-            print(f"{Fore.CYAN}{EMOJI['KEY']} Registering with Cursor using GitHub...{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('github.registering_cursor') if self.translator else '正在注册Cursor账号...'}{Style.RESET_ALL}")
             
-            # Navigate to Cursor login page
-            self.browser.get("https://cursor.sh/login")
+            # Navigate to Cursor sign-up page
+            self.browser.get("https://www.cursor.com/")
             time.sleep(3)
             
+            # Look for sign-up or login button
+            signup_buttons = self.browser.find_elements(By.XPATH, "//a[contains(text(), 'Sign up') or contains(text(), 'Log in')]")
+            if signup_buttons:
+                signup_buttons[0].click()
+                time.sleep(3)
+            
+            # Wait for authentication page to load
             try:
-                # Look for GitHub login button
-                github_buttons = WebDriverWait(self.browser, 15).until(
-                    EC.presence_of_all_elements_located((By.XPATH, "//button[contains(., 'GitHub') or contains(@class, 'github')]"))
+                WebDriverWait(self.browser, 10).until(
+                    EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'GitHub') or contains(@class, 'github') or //img[contains(@src, 'github')]]"))
                 )
-                
-                if not github_buttons:
-                    print(f"{Fore.RED}{EMOJI['ERROR']} GitHub login button not found{Style.RESET_ALL}")
-                    return False
-                
-                # Click the first GitHub button
-                print(f"{Fore.CYAN}{EMOJI['INFO']} Clicking GitHub login button...{Style.RESET_ALL}")
+            except:
+                print(f"{Fore.YELLOW}{EMOJI['WARNING']} {self.translator.get('github.waiting_for_auth_page') if self.translator else '等待认证页面加载...'}{Style.RESET_ALL}")
+            
+            # Click on GitHub login button
+            github_buttons = self.browser.find_elements(By.XPATH, "//button[contains(text(), 'GitHub') or contains(@class, 'github')]") or \
+                            self.browser.find_elements(By.XPATH, "//a[contains(text(), 'GitHub') or contains(@class, 'github')]") or \
+                            self.browser.find_elements(By.XPATH, "//div[contains(text(), 'GitHub') or contains(@class, 'github')]")
+            
+            if github_buttons:
+                print(f"{Fore.CYAN}{EMOJI['LINK']} {self.translator.get('github.clicking_github_login') if self.translator else '点击GitHub登录按钮...'}{Style.RESET_ALL}")
                 github_buttons[0].click()
                 time.sleep(5)
+            else:
+                print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.github_login_button_not_found') if self.translator else '未找到GitHub登录按钮'}{Style.RESET_ALL}")
+                return False
+            
+            # Check if redirected to GitHub login
+            if "github.com" in self.browser.current_url:
+                print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('github.logging_into_github') if self.translator else '正在登录GitHub...'}{Style.RESET_ALL}")
                 
-                # Check if we're redirected to GitHub login
-                current_url = self.browser.current_url
-                if "github.com" in current_url:
-                    print(f"{Fore.CYAN}{EMOJI['INFO']} Redirected to GitHub login{Style.RESET_ALL}")
+                # Enter credentials
+                try:
+                    username_field = WebDriverWait(self.browser, 10).until(
+                        EC.presence_of_element_located((By.XPATH, "//input[@id='login_field' or @name='login']"))
+                    )
+                    password_field = self.browser.find_element(By.XPATH, "//input[@id='password' or @name='password']")
                     
-                    # Check if we need to log in to GitHub
-                    if "login" in current_url:
-                        print(f"{Fore.CYAN}{EMOJI['INFO']} Logging into GitHub...{Style.RESET_ALL}")
-                        
-                        try:
-                            # Enter GitHub credentials
-                            username_field = WebDriverWait(self.browser, 10).until(
-                                EC.presence_of_element_located((By.ID, "login_field"))
-                            )
-                            username_field.send_keys(self.github_username)
-                            
-                            password_field = self.browser.find_element(By.ID, "password")
-                            password_field.send_keys(self.github_password)
-                            
-                            # Click sign in
-                            signin_button = self.browser.find_element(By.CSS_SELECTOR, "input[type='submit']")
-                            signin_button.click()
-                            time.sleep(5)
-                        except Exception as e:
-                            print(f"{Fore.RED}{EMOJI['ERROR']} Error during GitHub login: {str(e)}{Style.RESET_ALL}")
-                            return False
-                    
-                    # Check if we're on the authorization page
-                    if "authorize" in self.browser.current_url:
-                        print(f"{Fore.CYAN}{EMOJI['INFO']} Authorizing Cursor app...{Style.RESET_ALL}")
-                        
-                        try:
-                            # Look for authorization button
-                            auth_buttons = self.browser.find_elements(By.XPATH, "//button[contains(., 'Authorize') or contains(@class, 'btn-primary')]")
-                            
-                            if auth_buttons:
-                                auth_buttons[0].click()
-                                print(f"{Fore.GREEN}{EMOJI['SUCCESS']} Cursor authorized with GitHub{Style.RESET_ALL}")
-                                time.sleep(5)
-                            else:
-                                print(f"{Fore.YELLOW}{EMOJI['WARNING']} No authorization button found, GitHub may be already authorized{Style.RESET_ALL}")
-                        except Exception as e:
-                            print(f"{Fore.RED}{EMOJI['ERROR']} Error during GitHub authorization: {str(e)}{Style.RESET_ALL}")
-                
-                # Wait for Cursor dashboard to load
-                timeout = 30
-                start_time = time.time()
-                while time.time() - start_time < timeout:
-                    if "cursor.sh" in self.browser.current_url and not "login" in self.browser.current_url:
-                        print(f"{Fore.GREEN}{EMOJI['SUCCESS']} Successfully logged into Cursor{Style.RESET_ALL}")
-                        break
+                    username_field.send_keys(self.github_username)
                     time.sleep(1)
-                
-                if "login" in self.browser.current_url:
-                    print(f"{Fore.RED}{EMOJI['ERROR']} Failed to log into Cursor after {timeout} seconds{Style.RESET_ALL}")
+                    password_field.send_keys(self.github_password)
+                    time.sleep(1)
+                    
+                    # Click sign in
+                    signin_button = self.browser.find_element(By.XPATH, "//input[@type='submit' or @value='Sign in']")
+                    signin_button.click()
+                    time.sleep(5)
+                    
+                except Exception as login_error:
+                    print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.github_login_error', error=str(login_error)) if self.translator else f'GitHub登录过程中出错: {str(login_error)}'}{Style.RESET_ALL}")
                     return False
-                
-                # Wait for dashboard elements to load
-                time.sleep(3)
-                
-                print(f"{Fore.GREEN}{EMOJI['SUCCESS']} Cursor registered with GitHub successfully{Style.RESET_ALL}")
-                
-                # Now reset the machine ID
-                return self.reset_machine_id()
-                
-            except Exception as e:
-                print(f"{Fore.RED}{EMOJI['ERROR']} Error during Cursor registration: {str(e)}{Style.RESET_ALL}")
+            
+            # Check for authorization page and authorize if needed
+            if "github.com/login/oauth/authorize" in self.browser.current_url:
+                try:
+                    authorize_button = WebDriverWait(self.browser, 10).until(
+                        EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Authorize') or @id='js-oauth-authorize-btn']"))
+                    )
+                    print(f"{Fore.CYAN}{EMOJI['LINK']} {self.translator.get('github.authorizing_cursor') if self.translator else '正在授权Cursor访问...'}{Style.RESET_ALL}")
+                    authorize_button.click()
+                    time.sleep(5)
+                except:
+                    print(f"{Fore.YELLOW}{EMOJI['WARNING']} {self.translator.get('github.no_authorization_needed') if self.translator else '无需额外授权或授权按钮未找到'}{Style.RESET_ALL}")
+            
+            # Wait for redirection to Cursor
+            max_wait = 30
+            cursor_redirected = False
+            
+            for _ in range(max_wait):
+                if "cursor.com" in self.browser.current_url:
+                    cursor_redirected = True
+                    break
+                time.sleep(1)
+            
+            if cursor_redirected:
+                print(f"{Fore.GREEN}{EMOJI['SUCCESS']} {self.translator.get('github.cursor_registration_complete') if self.translator else 'Cursor注册完成'}{Style.RESET_ALL}")
+                return True
+            else:
+                print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.cursor_registration_failed') if self.translator else 'Cursor注册失败，未重定向到Cursor'}{Style.RESET_ALL}")
                 return False
                 
         except Exception as e:
-            print(f"{Fore.RED}{EMOJI['ERROR']} Failed to register with Cursor: {str(e)}{Style.RESET_ALL}")
+            print(f"{Fore.RED}{EMOJI['ERROR']} {self.translator.get('github.cursor_registration_error', error=str(e)) if self.translator else f'Cursor注册过程中出错: {str(e)}'}{Style.RESET_ALL}")
             return False
-    
+
     def reset_machine_id(self):
-        """Reset the Cursor machine ID to bypass limitations"""
+        """
+        重置机器ID
+        
+        通过修改Cursor应用程序的机器ID文件实现设备标识重置，
+        避免不同账号之间的使用限制。自动备份原始文件并生成新的唯一ID。
+        
+        返回值:
+            bool: 机器ID重置是否成功
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['UPDATE']} Resetting Cursor machine ID...{Style.RESET_ALL}")
             
@@ -527,7 +592,15 @@ class GitHubCursorRegistration:
             return False
             
     def save_credentials(self):
-        """Save the generated credentials to a file"""
+        """
+        保存账号凭据
+        
+        将生成的GitHub账号和Cursor访问信息保存到本地文件，
+        便于日后查看和管理。包括邮箱地址、GitHub用户名和密码等。
+        
+        返回值:
+            bool: 凭据保存是否成功
+        """
         try:
             if not self.email_address or not self.github_username or not self.github_password:
                 print(f"{Fore.RED}{EMOJI['ERROR']} No credentials to save{Style.RESET_ALL}")
@@ -575,7 +648,14 @@ class GitHubCursorRegistration:
             return False
     
     def cleanup(self):
-        """Clean up resources"""
+        """
+        清理资源
+        
+        关闭浏览器实例并释放相关资源，确保程序结束时无残留进程。
+        
+        返回值:
+            bool: 清理是否成功
+        """
         if self.browser:
             try:
                 self.browser.quit()
@@ -583,7 +663,20 @@ class GitHubCursorRegistration:
                 pass
     
     def start_registration(self):
-        """Start the GitHub Cursor registration process"""
+        """
+        启动注册流程
+        
+        执行完整的注册流程，按顺序调用各个步骤方法，包括：
+        1. 获取临时邮箱
+        2. 注册GitHub账号
+        3. 验证邮箱
+        4. 注册Cursor
+        5. 重置机器ID
+        6. 保存凭据
+        
+        返回值:
+            bool: 整个注册流程是否成功
+        """
         try:
             # Step 1: Get temporary email
             if not self.get_temp_email():
@@ -609,7 +702,15 @@ class GitHubCursorRegistration:
             self.cleanup()
 
 def display_features_and_warnings(translator=None):
-    """Display features and warnings before proceeding"""
+    """
+    显示功能说明和警告信息
+    
+    在开始注册流程前显示工具的功能、注意事项和可能的风险，
+    包括GitHub账号创建、临时邮箱使用和自动化流程可能需要手动干预的部分。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+    """
     if translator:
         print(f"\n🚀 {translator.get('github_register.title')}")
         print("=====================================")
@@ -644,7 +745,18 @@ def display_features_and_warnings(translator=None):
         print("=====================================\n")
 
 def get_user_confirmation(translator=None):
-    """Prompt the user for confirmation to proceed"""
+    """
+    获取用户确认
+    
+    提示用户确认是否继续执行注册流程，要求用户输入"YES"来确认。
+    这是一个安全措施，确保用户理解并同意该工具的操作。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 用户是否确认继续
+    """
     while True:
         if translator:
             response = input(f"{translator.get('github_register.confirm')} (yes/no): ").lower().strip()
@@ -666,7 +778,18 @@ def get_user_confirmation(translator=None):
                 print("Please enter 'yes' or 'no'.")
 
 def main(translator=None):
-    """Main function to run the GitHub Cursor registration process"""
+    """
+    主函数
+    
+    执行GitHub Cursor注册工具的入口点，显示功能说明，
+    获取用户确认，然后启动注册流程。处理可能的异常并提供友好的错误信息。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 注册是否成功完成
+    """
     logging.info(f"{Fore.CYAN} {translator.get('github_register.starting_automation')}{Style.RESET_ALL}")
     
     # Display features and warnings

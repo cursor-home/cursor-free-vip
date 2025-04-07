@@ -1,3 +1,13 @@
+"""
+cursor_auth.py - Cursor认证信息管理模块
+
+这个模块负责管理Cursor的认证信息，主要功能包括：
+- 连接Cursor的SQLite数据库
+- 更新认证信息（邮箱、访问令牌、刷新令牌等）
+- 修改Cursor的登录状态
+
+通过修改Cursor保存的身份验证信息，可以实现免费使用Cursor Pro的功能。
+"""
 import sqlite3
 import os
 import sys
@@ -20,7 +30,27 @@ EMOJI = {
 }
 
 class CursorAuth:
+    """
+    Cursor认证管理类
+    
+    负责处理Cursor的认证数据库操作，包括连接数据库和更新认证信息。
+    该类提供了修改Cursor认证状态的功能，使其能够识别为已注册的专业版用户。
+    """
     def __init__(self, translator=None):
+        """
+        初始化Cursor认证管理器
+        
+        根据不同操作系统找到Cursor的SQLite数据库文件，并尝试连接。
+        
+        参数:
+            translator: 翻译器对象，用于多语言支持，可以为None
+        
+        初始化过程:
+        1. 加载配置获取数据库路径
+        2. 验证数据库文件是否存在
+        3. 检查文件权限
+        4. 尝试连接数据库
+        """
         self.translator = translator
         
         # Get configuration
@@ -76,6 +106,25 @@ class CursorAuth:
             return
 
     def update_auth(self, email=None, access_token=None, refresh_token=None):
+        """
+        更新Cursor的认证信息
+        
+        修改Cursor的SQLite数据库中的认证信息，包括邮箱、访问令牌和刷新令牌等。
+        如果数据库不存在，会创建一个新的数据库文件。
+        
+        参数:
+            email (str, optional): 要设置的邮箱地址
+            access_token (str, optional): 要设置的访问令牌
+            refresh_token (str, optional): 要设置的刷新令牌
+            
+        返回值:
+            bool: 操作成功返回True，失败返回False
+            
+        注意:
+            - 使用事务确保数据完整性
+            - 如果任何一个参数为None，则不会更新该字段
+            - 设置认证类型为"Auth_0"
+        """
         conn = None
         try:
             # Ensure the directory exists and set the correct permissions

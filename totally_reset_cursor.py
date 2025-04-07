@@ -1,3 +1,16 @@
+"""
+totally_reset_cursor.py - Cursor完全重置工具
+
+本模块提供了重置Cursor应用所有痕迹的功能，包括：
+- 删除所有Cursor相关配置文件
+- 重置机器ID和设备识别码
+- 清除所有登录凭证和会话数据
+- 重置使用统计和遥测数据
+- 重新安装或修补Cursor关键文件
+
+与reset_machine_manual.py不同，此模块执行更彻底的重置，
+确保完全清除Cursor的所有数据和标识，适用于需要完全"重新开始"的情况。
+"""
 import os
 import sys
 import json
@@ -31,7 +44,21 @@ EMOJI = {
 }
 
 def get_cursor_paths(translator=None) -> Tuple[str, str]:
-    """ Get Cursor related paths"""
+    """
+    获取Cursor应用程序的重要文件路径
+    
+    根据不同操作系统确定Cursor应用的package.json和main.js文件路径。
+    支持Windows、macOS和Linux系统，并处理不同的安装位置情况。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        Tuple[str, str]: 包含package.json和main.js路径的元组
+        
+    异常:
+        OSError: 当找不到必要的文件或路径时抛出
+    """
     system = platform.system()
     
     # Read config file
@@ -135,9 +162,19 @@ def get_cursor_paths(translator=None) -> Tuple[str, str]:
 
 def get_cursor_machine_id_path(translator=None) -> str:
     """
-    Get Cursor machineId file path based on operating system
-    Returns:
-        str: Path to machineId file
+    获取Cursor机器ID文件的路径
+    
+    根据操作系统类型确定machineId文件的存储位置，
+    从配置文件中读取路径或使用默认路径。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        str: machineId文件的完整路径
+        
+    异常:
+        OSError: 当不支持的操作系统时抛出
     """
     # Read configuration
     config_dir = os.path.join(get_user_documents_path(), ".cursor-free-vip")
@@ -176,7 +213,21 @@ def get_cursor_machine_id_path(translator=None) -> str:
         config.write(f)
 
 def get_workbench_cursor_path(translator=None) -> str:
-    """Get Cursor workbench.desktop.main.js path"""
+    """
+    获取Cursor工作台JS文件路径
+    
+    找到workbench.desktop.main.js文件的位置，该文件包含Cursor的
+    核心功能代码，根据不同的操作系统类型确定文件路径。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        str: workbench.desktop.main.js文件的完整路径
+        
+    异常:
+        OSError: 当找不到文件或不支持的操作系统时抛出
+    """
     system = platform.system()
     
     paths_map = {
@@ -219,7 +270,21 @@ def get_workbench_cursor_path(translator=None) -> str:
     return main_path
 
 def version_check(version: str, min_version: str = "", max_version: str = "", translator=None) -> bool:
-    """Version number check"""
+    """
+    版本号检查功能
+    
+    验证给定的版本号格式是否正确，并检查其是否在指定的最小和最大版本范围内。
+    用于确保程序只在兼容的Cursor版本上运行。
+    
+    参数:
+        version (str): 要检查的版本号，格式为"x.y.z"
+        min_version (str): 最小支持的版本号，格式为"x.y.z"
+        max_version (str): 最大支持的版本号，格式为"x.y.z"
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 版本检查通过返回True，否则返回False
+    """
     version_pattern = r"^\d+\.\d+\.\d+$"
     try:
         if not re.match(version_pattern, version):
@@ -227,6 +292,15 @@ def version_check(version: str, min_version: str = "", max_version: str = "", tr
             return False
 
         def parse_version(ver: str) -> Tuple[int, ...]:
+            """
+            解析版本号字符串为整数元组
+            
+            参数:
+                ver (str): 版本号字符串，格式为"x.y.z"
+                
+            返回值:
+                Tuple[int, ...]: 版本号的整数元组表示，如(1, 2, 3)
+            """
             return tuple(map(int, ver.split(".")))
 
         current = parse_version(version)
@@ -246,7 +320,19 @@ def version_check(version: str, min_version: str = "", max_version: str = "", tr
         return False
 
 def check_cursor_version(translator) -> bool:
-    """Check Cursor version"""
+    """
+    检查Cursor版本
+    
+    读取Cursor的package.json文件，解析其版本号并验证是否
+    符合程序的兼容性要求。会处理各种可能的错误情况，如
+    文件不存在、JSON解析错误、格式无效等。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持
+        
+    返回值:
+        bool: 版本检查通过返回True，否则返回False
+    """
     try:
         pkg_path, _ = get_cursor_paths(translator)
         print(f"{Fore.CYAN}{EMOJI['INFO']} {translator.get('reset.reading_package_json', path=pkg_path)}{Style.RESET_ALL}")
@@ -307,7 +393,18 @@ def check_cursor_version(translator) -> bool:
 
 def modify_workbench_js(file_path: str, translator=None) -> bool:
     """
-    Modify file content
+    修改Cursor工作台JS文件
+    
+    修改workbench.desktop.main.js文件中的界面元素，替换"升级到Pro"按钮，
+    移除试用标记，并隐藏通知提示。保留原始文件的权限并创建备份。
+    根据不同操作系统使用不同的替换模式。
+    
+    参数:
+        file_path (str): 要修改的文件路径
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 修改成功返回True，否则返回False
     """
     try:
         # Save original file permissions
@@ -377,7 +474,19 @@ def modify_workbench_js(file_path: str, translator=None) -> bool:
         return False
 
 def modify_main_js(main_path: str, translator) -> bool:
-    """Modify main.js file"""
+    """
+    修改Cursor主JS文件
+    
+    替换main.js文件中获取机器ID的函数实现，确保Cursor使用固定的机器ID，
+    而不是动态生成的ID。会创建原始文件的备份，并保留文件的原始权限设置。
+    
+    参数:
+        main_path (str): main.js文件的路径
+        translator: 翻译器对象，用于多语言支持
+        
+    返回值:
+        bool: 修改成功返回True，否则返回False
+    """
     try:
         original_stat = os.stat(main_path)
         original_mode = original_stat.st_mode
@@ -416,7 +525,18 @@ def modify_main_js(main_path: str, translator) -> bool:
         return False
 
 def patch_cursor_get_machine_id(translator) -> bool:
-    """Patch Cursor getMachineId function"""
+    """
+    修补Cursor获取机器ID的功能
+    
+    检查Cursor版本，创建文件备份，然后修改main.js文件中的getMachineId函数，
+    使其返回固定的ID而不是系统生成的ID，从而绕过使用限制。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持
+        
+    返回值:
+        bool: 修补成功返回True，失败返回False
+    """
     try:
         print(f"{Fore.CYAN}{EMOJI['INFO']} {translator.get('reset.start_patching')}...{Style.RESET_ALL}")
         
@@ -466,7 +586,27 @@ def patch_cursor_get_machine_id(translator) -> bool:
         return False
 
 class MachineIDResetter:
+    """
+    机器ID重置器类
+    
+    负责管理和重置Cursor应用程序使用的机器ID和相关标识符，
+    包括存储在JSON文件和SQLite数据库中的ID。支持不同操作系统，
+    自动处理不同平台的文件路径差异。
+    """
     def __init__(self, translator=None):
+        """
+        初始化机器ID重置器
+        
+        读取配置文件，根据操作系统确定Cursor数据文件的路径，
+        并准备重置所需的文件路径信息。
+        
+        参数:
+            translator: 翻译器对象，用于多语言支持，可以为None
+            
+        异常:
+            FileNotFoundError: 当找不到配置文件时抛出
+            EnvironmentError: 当环境变量未设置时抛出
+        """
         self.translator = translator
 
         # Read configuration
@@ -537,7 +677,15 @@ class MachineIDResetter:
             config.write(f)
 
     def generate_new_ids(self):
-        """Generate new machine ID"""
+        """
+        生成新的机器ID和相关标识符
+        
+        创建一组新的随机标识符，包括UUID、机器ID、Mac机器ID和遥测ID，
+        并更新machineId文件。这些新ID将被用于替换Cursor使用的旧ID。
+        
+        返回值:
+            dict: 包含各种新生成ID的字典，键为ID名称，值为ID值
+        """
         # Generate new UUID
         dev_device_id = str(uuid.uuid4())
 
@@ -561,7 +709,19 @@ class MachineIDResetter:
         }
 
     def update_sqlite_db(self, new_ids):
-        """Update machine ID in SQLite database"""
+        """
+        更新SQLite数据库中的机器ID
+        
+        将新生成的ID写入Cursor使用的SQLite数据库中，
+        创建或更新ItemTable表中的相关键值对，确保
+        Cursor使用新的机器标识。
+        
+        参数:
+            new_ids (dict): 包含新ID的字典，键为ID名称，值为ID值
+            
+        返回值:
+            bool: 更新成功返回True，失败返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('reset.updating_sqlite')}...{Style.RESET_ALL}")
             
@@ -596,7 +756,19 @@ class MachineIDResetter:
             return False
 
     def update_system_ids(self, new_ids):
-        """Update system-level IDs"""
+        """
+        更新系统级别的机器ID
+        
+        根据操作系统类型更新系统级别的机器标识符，包括Windows注册表中的
+        MachineGuid和MachineId，以及macOS平台的UUID，确保系统提供一致的
+        机器标识。
+        
+        参数:
+            new_ids (dict): 包含新ID的字典，键为ID名称，值为ID值
+            
+        返回值:
+            bool: 更新成功返回True，失败返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('reset.updating_system_ids')}...{Style.RESET_ALL}")
             
@@ -613,7 +785,16 @@ class MachineIDResetter:
             return False
 
     def _update_windows_machine_guid(self):
-        """Update Windows MachineGuid"""
+        """
+        更新Windows MachineGuid
+        
+        在Windows注册表中更新加密模块使用的MachineGuid值，
+        这个值常被应用程序用于识别Windows设备。需要管理员权限。
+        
+        异常:
+            PermissionError: 当没有足够权限访问注册表时抛出
+            Exception: 其他更新失败时抛出
+        """
         try:
             import winreg
             key = winreg.OpenKey(
@@ -634,7 +815,16 @@ class MachineIDResetter:
             raise
     
     def _update_windows_machine_id(self):
-        """Update Windows MachineId in SQMClient registry"""
+        """
+        更新Windows SQMClient MachineId
+        
+        在Windows注册表中更新SQMClient使用的MachineId值，
+        这个值通常用于软件质量监测和遥测系统。如果注册表项
+        不存在，会创建相应的项。需要管理员权限。
+        
+        返回值:
+            bool: 更新成功返回True，失败返回False
+        """
         try:
             import winreg
             # 1. Generate new GUID
@@ -673,7 +863,19 @@ class MachineIDResetter:
                     
 
     def _update_macos_platform_uuid(self, new_ids):
-        """Update macOS Platform UUID"""
+        """
+        更新macOS平台UUID
+        
+        修改macOS系统配置中的平台UUID值，这个值用于识别macOS设备。
+        使用plutil命令更新com.apple.platform.uuid.plist文件，
+        需要root权限才能执行。
+        
+        参数:
+            new_ids (dict): 包含新ID的字典，键为ID名称，值为ID值
+            
+        异常:
+            Exception: 当执行plutil命令失败时抛出
+        """
         try:
             uuid_file = "/var/root/Library/Preferences/SystemConfiguration/com.apple.platform.uuid.plist"
             if os.path.exists(uuid_file):
@@ -689,7 +891,21 @@ class MachineIDResetter:
             raise
 
     def reset_machine_ids(self):
-        """Reset machine ID and backup original file"""
+        """
+        重置所有机器ID
+        
+        执行完整的机器ID重置流程，包括：
+        1. 读取和备份原始配置文件
+        2. 生成新的随机ID
+        3. 更新各种配置文件和数据库
+        4. 更新系统级ID
+        5. 修补Cursor代码文件
+        
+        会检查Cursor版本并根据版本选择合适的修补方式。
+        
+        返回值:
+            bool: 重置成功返回True，失败返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['INFO']} {self.translator.get('reset.checking')}...{Style.RESET_ALL}")
 
@@ -759,11 +975,16 @@ class MachineIDResetter:
 
     def update_machine_id_file(self, machine_id: str) -> bool:
         """
-        Update machineId file with new machine_id
-        Args:
-            machine_id (str): New machine ID to write
-        Returns:
-            bool: True if successful, False otherwise
+        更新machineId文件
+        
+        用新生成的机器ID覆盖Cursor使用的machineId文件，
+        会自动创建目录（如果不存在）和备份原始文件。
+        
+        参数:
+            machine_id (str): 新的机器ID字符串
+            
+        返回值:
+            bool: 更新成功返回True，失败返回False
         """
         try:
             # Get the machineId file path
@@ -796,6 +1017,18 @@ class MachineIDResetter:
             return False
 
 def run(translator=None):
+    """
+    运行Cursor完全重置程序
+    
+    获取配置信息，创建MachineIDResetter实例，并执行重置操作。
+    这是从主程序或命令行调用时的入口函数。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 操作成功返回True，失败返回False
+    """
     config = get_config(translator)
     if not config:
         return False

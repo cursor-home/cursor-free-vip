@@ -1,3 +1,15 @@
+"""
+cursor_register.py - Cursor账号注册流程控制模块
+
+这个模块负责Cursor注册流程的整体控制，主要功能包括：
+- 创建临时邮箱
+- 使用随机生成的个人信息注册账号
+- 获取并保存访问令牌
+- 更新Cursor登录状态
+- 重置机器ID
+
+通过整合各个子模块的功能，实现全自动化的Cursor账号注册和激活过程。
+"""
 import os
 from colorama import Fore, Style, init
 import time
@@ -29,7 +41,21 @@ EMOJI = {
 }
 
 class CursorRegistration:
+    """
+    Cursor注册流程管理类
+    
+    负责协调整个注册流程，包括生成随机账号信息、
+    创建临时邮箱、注册账号、处理验证码、获取令牌等步骤。
+    """
     def __init__(self, translator=None):
+        """
+        初始化注册流程管理器
+        
+        生成随机的个人信息（姓名、密码等），并准备注册环境。
+        
+        参数:
+            translator: 翻译器对象，用于多语言支持，可以为None
+        """
         self.translator = translator
         # Set to display mode
         os.environ['BROWSER_HEADLESS'] = 'False'
@@ -65,12 +91,29 @@ class CursorRegistration:
         print(f"{Fore.CYAN}{EMOJI['FORM']} {self.translator.get('register.last_name')}: {self.last_name} {Style.RESET_ALL}")
 
     def _generate_password(self, length=12):
-        """Generate Random Password"""
+        """
+        生成随机密码
+        
+        创建一个包含字母、数字和特殊字符的随机密码。
+        
+        参数:
+            length (int): 密码长度，默认为12
+            
+        返回值:
+            str: 生成的随机密码
+        """
         chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
         return ''.join(random.choices(chars, k=length))
 
     def setup_email(self):
-        """Setup Email"""
+        """
+        设置临时邮箱
+        
+        创建一个临时邮箱地址用于注册，并准备接收验证邮件。
+        
+        返回值:
+            bool: 设置成功返回True，否则返回False
+        """
         try:
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.browser_start')}...{Style.RESET_ALL}")
             
@@ -95,7 +138,15 @@ class CursorRegistration:
             return False
 
     def register_cursor(self):
-        """注册 Cursor"""
+        """
+        注册Cursor账号
+        
+        使用准备好的个人信息和临时邮箱注册Cursor账号。
+        该过程涉及填写注册表单、处理验证码和设置密码。
+        
+        返回值:
+            bool: 注册成功返回True，否则返回False
+        """
         browser_tab = None
         try:
             print(f"{Fore.CYAN}{EMOJI['START']} {self.translator.get('register.register_start')}...{Style.RESET_ALL}")
@@ -142,7 +193,14 @@ class CursorRegistration:
                     pass
                 
     def _get_account_info(self):
-        """Get Account Information and Token"""
+        """
+        获取账号信息和访问令牌
+        
+        在注册成功后，从设置页面获取账号的使用量信息和访问令牌。
+        
+        返回值:
+            bool: 获取成功返回True，否则返回False
+        """
         try:
             self.signup_tab.get(self.settings_url)
             time.sleep(2)
@@ -194,7 +252,19 @@ class CursorRegistration:
             return False
 
     def _save_account_info(self, token, total_usage):
-        """Save Account Information to File"""
+        """
+        保存账号信息
+        
+        将注册成功的账号信息（邮箱、密码、令牌等）保存到文件，
+        同时更新Cursor认证信息和重置机器ID。
+        
+        参数:
+            token (str): 账号访问令牌
+            total_usage (str): 账号使用量限制
+            
+        返回值:
+            bool: 保存成功返回True，否则返回False
+        """
         try:
             # Update authentication information first
             print(f"{Fore.CYAN}{EMOJI['KEY']} {self.translator.get('register.update_cursor_auth_info')}...{Style.RESET_ALL}")
@@ -226,7 +296,14 @@ class CursorRegistration:
             return False
 
     def start(self):
-        """Start Registration Process"""
+        """
+        启动注册流程
+        
+        协调执行整个注册流程，包括邮箱设置、账号注册等步骤。
+        
+        返回值:
+            bool: 注册流程成功返回True，否则返回False
+        """
         try:
             if self.setup_email():
                 if self.register_cursor():
@@ -242,22 +319,37 @@ class CursorRegistration:
                     pass
 
     def update_cursor_auth(self, email=None, access_token=None, refresh_token=None):
-        """Update Cursor Auth Info"""
+        """
+        更新Cursor认证信息
+        
+        调用CursorAuth模块更新本地的Cursor认证信息，
+        使Cursor应用程序能够识别为已登录的Pro账号。
+        
+        参数:
+            email (str, optional): 邮箱地址
+            access_token (str, optional): 访问令牌
+            refresh_token (str, optional): 刷新令牌
+            
+        返回值:
+            bool: 更新成功返回True，否则返回False
+        """
         auth_manager = CursorAuth(translator=self.translator)
         return auth_manager.update_auth(email, access_token, refresh_token)
 
 def main(translator=None):
-    """Main function to be called from main.py"""
-    print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{EMOJI['START']} {translator.get('register.title')}{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-
-    registration = CursorRegistration(translator)
-    registration.start()
-
-    print(f"\n{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
-    input(f"{EMOJI['INFO']} {translator.get('register.press_enter')}...")
+    """
+    主函数
+    
+    创建并启动Cursor注册流程。
+    
+    参数:
+        translator: 翻译器对象，用于多语言支持，可以为None
+        
+    返回值:
+        bool: 注册成功返回True，否则返回False
+    """
+    cursor_registration = CursorRegistration(translator)
+    return cursor_registration.start()
 
 if __name__ == "__main__":
-    from main import translator as main_translator
-    main(main_translator) 
+    main() 
